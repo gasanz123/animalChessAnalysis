@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Animal Chess Analysis Board</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script defer src="script.js"></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="board-panel">
+        <header>
+          <h1>Animal Analysis Board</h1>
+          <p>Lichess-inspired analysis with 3D-style animal pieces.</p>
+        </header>
+        <div id="board" class="board" aria-label="Chess board"></div>
+      </section>
+
+      <aside class="control-panel">
+        <div class="controls">
+          <button id="newGameBtn">New game</button>
+          <button id="undoBtn">◀ Undo</button>
+          <button id="redoBtn">Redo ▶</button>
+          <button id="flipBtn">Flip board</button>
+        </div>
+
+        <label for="fenInput">FEN</label>
+        <textarea id="fenInput" rows="3" spellcheck="false"></textarea>
+        <button id="loadFenBtn">Load FEN</button>
+
+        <div class="status-box">
+          <h2>Status</h2>
+          <p id="statusText"></p>
+        </div>
+
+        <div class="eval-box">
+          <h2>Stockfish eval</h2>
+          <p><strong>Score:</strong> <span id="evalValue">—</span></p>
+          <p><strong>Depth:</strong> <span id="evalDepth">—</span></p>
+          <p id="evalState">Waiting</p>
+        </div>
+
+        <div class="moves-box">
+          <h2>Move list</h2>
+          <ol id="moveList"></ol>
+        </div>
+
+        <div class="legend-box">
+          <h2>Animal set</h2>
+          <ul>
+            <li>🦁 King</li>
+            <li>🦅 Queen</li>
+            <li>🐘 Rook</li>
+            <li>🦒 Bishop</li>
+            <li>🐎 Knight</li>
+            <li>🐺 Pawn</li>
+          </ul>
+        </div>
+      </aside>
+    </main>
+  </body>
+</html>
