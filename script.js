@@ -37,6 +37,10 @@ let selectedSquare = null;
 let legalTargets = [];
 let isFlipped = false;
 
+let isEditorMode = false;
+let selectedEditorPiece = null;
+let editorPreEditState = null;
+
 let stockfishWorker = null;
 let stockfishReady = false;
 let evalRequestId = 0;
@@ -677,7 +681,83 @@ function clearSelection() {
   legalTargets = [];
 }
 
+function handleEditorSquareClick(square) {
+  const { file, rank } = fromSquare(square);
+  if (selectedEditorPiece) {
+    const current = game.board[rank][file];
+    if (current && current.color === selectedEditorPiece[0] && current.type === selectedEditorPiece[1]) {
+      game.board[rank][file] = null;
+    } else {
+      game.board[rank][file] = { type: selectedEditorPiece[1], color: selectedEditorPiece[0] };
+    }
+  } else {
+    game.board[rank][file] = null;
+  }
+  renderBoard();
+  fenInput.value = generateFen();
+}
+
+function updateEditorTurnFromGame() {
+  const btn = document.getElementById("editorTurnBtn");
+  btn.dataset.turn = game.turn;
+  btn.textContent = game.turn === "w" ? "White to move" : "Black to move";
+}
+
+function updateEditorCastlingFromGame() {
+  document.getElementById("castleK").checked = game.castling.includes("K");
+  document.getElementById("castleQ").checked = game.castling.includes("Q");
+  document.getElementById("castlek").checked = game.castling.includes("k");
+  document.getElementById("castleq").checked = game.castling.includes("q");
+}
+
+function getEditorCastlingString() {
+  let s = "";
+  if (document.getElementById("castleK").checked) s += "K";
+  if (document.getElementById("castleQ").checked) s += "Q";
+  if (document.getElementById("castlek").checked) s += "k";
+  if (document.getElementById("castleq").checked) s += "q";
+  return s || "-";
+}
+
+function enterEditorMode() {
+  isEditorMode = true;
+  selectedEditorPiece = null;
+  editorPreEditState = snapshot();
+  game.enPassant = "-";
+  clearSelection();
+  updateEditorTurnFromGame();
+  updateEditorCastlingFromGame();
+  document.getElementById("editorPanel").classList.remove("hidden");
+  document.getElementById("editPositionBtn").textContent = "✕ Cancel editing";
+  boardEl.classList.add("edit-mode");
+  renderBoard();
+  fenInput.value = generateFen();
+}
+
+function exitEditorMode(commit) {
+  if (commit && editorPreEditState) {
+    undoStack.push(editorPreEditState);
+    redoStack.length = 0;
+  } else if (!commit && editorPreEditState) {
+    restore(editorPreEditState);
+  }
+  editorPreEditState = null;
+  isEditorMode = false;
+  selectedEditorPiece = null;
+  document.querySelectorAll(".palette-piece").forEach((b) => b.classList.remove("active"));
+  document.getElementById("editorPanel").classList.add("hidden");
+  document.getElementById("editPositionBtn").textContent = "Edit position";
+  boardEl.classList.remove("edit-mode");
+  clearSelection();
+  renderBoard();
+  updateStatus();
+}
+
 function handleSquareClick(square) {
+  if (isEditorMode) {
+    handleEditorSquareClick(square);
+    return;
+  }
   const squarePiece = getPiece(square);
   if (!selectedSquare) {
     if (squarePiece && squarePiece.color === game.turn) {
@@ -848,6 +928,52 @@ fenInput.addEventListener("keydown", (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
     loadFen();
   }
+});
+
+document.getElementById("editPositionBtn").addEventListener("click", () => {
+  if (isEditorMode) {
+    exitEditorMode(false);
+  } else {
+    enterEditorMode();
+  }
+});
+
+document.querySelectorAll(".palette-piece").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    if (selectedEditorPiece === btn.dataset.piece) {
+      selectedEditorPiece = null;
+      btn.classList.remove("active");
+    } else {
+      document.querySelectorAll(".palette-piece").forEach((b) => b.classList.remove("active"));
+      selectedEditorPiece = btn.dataset.piece;
+      btn.classList.add("active");
+    }
+  });
+});
+
+document.getElementById("editorTurnBtn").addEventListener("click", () => {
+  const btn = document.getElementById("editorTurnBtn");
+  game.turn = btn.dataset.turn === "w" ? "b" : "w";
+  btn.dataset.turn = game.turn;
+  btn.textContent = game.turn === "w" ? "White to move" : "Black to move";
+  fenInput.value = generateFen();
+});
+
+["castleK", "castleQ", "castlek", "castleq"].forEach((id) => {
+  document.getElementById(id).addEventListener("change", () => {
+    game.castling = getEditorCastlingString();
+    fenInput.value = generateFen();
+  });
+});
+
+document.getElementById("clearBoardBtn").addEventListener("click", () => {
+  game.board = Array.from({ length: 8 }, () => Array(8).fill(null));
+  renderBoard();
+  fenInput.value = generateFen();
+});
+
+document.getElementById("doneEditingBtn").addEventListener("click", () => {
+  exitEditorMode(true);
 });
 
 renderBoard();

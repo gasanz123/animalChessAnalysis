@@ -23,6 +23,44 @@
           <button id="undoBtn">◀ Undo</button>
           <button id="redoBtn">Redo ▶</button>
           <button id="flipBtn">Flip board</button>
+          <button id="editPositionBtn" class="span-2">Edit position</button>
+        </div>
+
+        <div id="editorPanel" class="editor-panel hidden">
+          <h2>Edit Position</h2>
+          <div class="palette-row">
+            <span class="palette-label">White</span>
+            <button class="palette-piece white-piece" data-piece="wk" title="White King" aria-label="White King">🦁</button>
+            <button class="palette-piece white-piece" data-piece="wq" title="White Queen" aria-label="White Queen">🦅</button>
+            <button class="palette-piece white-piece" data-piece="wr" title="White Rook" aria-label="White Rook">🐘</button>
+            <button class="palette-piece white-piece" data-piece="wb" title="White Bishop" aria-label="White Bishop">🦒</button>
+            <button class="palette-piece white-piece" data-piece="wn" title="White Knight" aria-label="White Knight">🐎</button>
+            <button class="palette-piece white-piece" data-piece="wp" title="White Pawn" aria-label="White Pawn">🐺</button>
+          </div>
+          <div class="palette-row">
+            <span class="palette-label">Black</span>
+            <button class="palette-piece black-piece" data-piece="bk" title="Black King" aria-label="Black King">🦁</button>
+            <button class="palette-piece black-piece" data-piece="bq" title="Black Queen" aria-label="Black Queen">🦅</button>
+            <button class="palette-piece black-piece" data-piece="br" title="Black Rook" aria-label="Black Rook">🐘</button>
+            <button class="palette-piece black-piece" data-piece="bb" title="Black Bishop" aria-label="Black Bishop">🦒</button>
+            <button class="palette-piece black-piece" data-piece="bn" title="Black Knight" aria-label="Black Knight">🐎</button>
+            <button class="palette-piece black-piece" data-piece="bp" title="Black Pawn" aria-label="Black Pawn">🐺</button>
+          </div>
+          <div class="editor-row">
+            <span class="palette-label">Turn</span>
+            <button id="editorTurnBtn" data-turn="w">White to move</button>
+          </div>
+          <div class="editor-row">
+            <span class="palette-label">Castling</span>
+            <label class="check-label"><input type="checkbox" id="castleK"> K</label>
+            <label class="check-label"><input type="checkbox" id="castleQ"> Q</label>
+            <label class="check-label"><input type="checkbox" id="castlek"> k</label>
+            <label class="check-label"><input type="checkbox" id="castleq"> q</label>
+          </div>
+          <div class="editor-row">
+            <button id="clearBoardBtn">Clear board</button>
+            <button id="doneEditingBtn">✓ Done editing</button>
+          </div>
         </div>
 
         <label for="fenInput">FEN</label>
