@@ -56,6 +56,7 @@ body {
   aspect-ratio: 1 / 1;
   display: grid;
   grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
   border-radius: 10px;
   overflow: hidden;
   border: 2px solid #4a4a4a;
@@ -108,17 +109,22 @@ body {
   display: grid;
   place-items: center;
   font-size: clamp(1.45rem, 2.5vw, 2.35rem);
-  border: 2px solid rgba(255, 255, 255, 0.22);
-  box-shadow: 0 6px 10px rgba(0, 0, 0, 0.28);
-  transform: perspective(120px) rotateX(15deg);
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  box-shadow:
+    0 8px 16px rgba(0, 0, 0, 0.45),
+    0 3px 6px rgba(0, 0, 0, 0.35),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.3),
+    inset 0 4px 8px rgba(255, 255, 255, 0.18);
+  transform: perspective(200px) rotateX(22deg) translateZ(4px);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 .piece.white {
-  background: linear-gradient(145deg, #fbfbfb, #d8d8d8);
+  background: radial-gradient(circle at 38% 32%, #ffffff 0%, #e0e0e0 45%, #b0b0b0 100%);
 }
 
 .piece.black {
-  background: linear-gradient(145deg, #5b5b5b, #242424);
+  background: radial-gradient(circle at 38% 32%, #7a7a7a 0%, #3e3e3e 50%, #151515 100%);
 }
 
 .control-panel {
