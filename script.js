@@ -728,7 +728,7 @@ function initStockfish() {
   }
 
   try {
-    stockfishWorker = new Worker("stockfish.js");
+    stockfishWorker = new Worker("stockfish.js#stockfish.wasm");
 
     stockfishWorker.onmessage = (event) => {
       const line = String(event.data || "").trim();
@@ -803,7 +803,7 @@ function requestStockfishEval() {
   evalDepthEl.textContent = "…";
   stockfishWorker.postMessage("stop");
   stockfishWorker.postMessage(`position fen ${fen}`);
-  stockfishWorker.postMessage("go depth 12");
+  stockfishWorker.postMessage("go depth 12 movetime 1500");
 }
 
 document.getElementById("newGameBtn").addEventListener("click", () => {
