@@ -204,6 +204,15 @@ h2 {
 }
 
 
+.square.best-move-from {
+  background-color: #b3a022 !important;
+}
+
+.square.best-move-to {
+  background-color: #cdd26a !important;
+}
+
+
 .eval-box p {
   margin: 0.2rem 0;
 }
