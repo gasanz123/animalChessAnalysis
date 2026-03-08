@@ -708,7 +708,7 @@ function initStockfish() {
   evalStateEl.textContent = "Starting Stockfish…";
 
   try {
-    stockfishWorker = new Worker("https://cdn.jsdelivr.net/npm/stockfish@16.0.0/src/stockfish.js");
+    stockfishWorker = new Worker("stockfish.js");
 
     stockfishWorker.onmessage = (event) => {
       const line = String(event.data || "").trim();
