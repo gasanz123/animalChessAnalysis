@@ -4,6 +4,7 @@ const statusText = document.getElementById("statusText");
 const moveListEl = document.getElementById("moveList");
 const evalValueEl = document.getElementById("evalValue");
 const evalDepthEl = document.getElementById("evalDepth");
+const evalBestMoveEl = document.getElementById("evalBestMove");
 const evalStateEl = document.getElementById("evalState");
 
 const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
@@ -39,6 +40,8 @@ let isFlipped = false;
 let stockfishWorker = null;
 let stockfishReady = false;
 let evalRequestId = 0;
+let bestMoveFrom = null;
+let bestMoveTo = null;
 
 function toSquare(file, rank) {
   return `${files[file]}${8 - rank}`;
@@ -606,6 +609,14 @@ function renderBoard() {
       squareEl.classList.add("move-target");
     }
 
+    if (bestMoveFrom === square) {
+      squareEl.classList.add("best-move-from");
+    }
+
+    if (bestMoveTo === square) {
+      squareEl.classList.add("best-move-to");
+    }
+
     const showCoord =
       (!isFlipped && square[0] === "a") ||
       (isFlipped && square[0] === "h") ||
@@ -701,11 +712,20 @@ function loadFen() {
 }
 
 function initStockfish() {
-  if (!evalValueEl || !evalDepthEl || !evalStateEl) return;
+  if (!evalValueEl || !evalDepthEl || !evalBestMoveEl || !evalStateEl) return;
 
   evalValueEl.textContent = "—";
   evalDepthEl.textContent = "—";
+  evalBestMoveEl.textContent = "—";
   evalStateEl.textContent = "Starting Stockfish…";
+
+  function applyBestMove(uciMove) {
+    bestMoveFrom = uciMove.slice(0, 2);
+    bestMoveTo = uciMove.slice(2, 4);
+    const promotion = uciMove.length === 5 ? uciMove[4].toUpperCase() : "";
+    evalBestMoveEl.textContent = `${bestMoveFrom}–${bestMoveTo}${promotion}`;
+    renderBoard();
+  }
 
   try {
     stockfishWorker = new Worker("stockfish.js");
@@ -725,6 +745,15 @@ function initStockfish() {
         return;
       }
 
+      if (line.startsWith("bestmove")) {
+        const move = line.split(" ")[1];
+        if (move && move !== "(none)") {
+          applyBestMove(move);
+        }
+        evalStateEl.textContent = "Ready";
+        return;
+      }
+
       if (!line.includes("score")) return;
 
       const depthMatch = line.match(/\bdepth\s+(\d+)/);
@@ -739,6 +768,11 @@ function initStockfish() {
         evalValueEl.textContent = `${(Number(cpMatch[1]) / 100).toFixed(2)}`;
       } else if (mateMatch) {
         evalValueEl.textContent = `#${mateMatch[1]}`;
+      }
+
+      const pvMatch = line.match(/\bpv\s+([a-h][1-8][a-h][1-8][qrbn]?)/);
+      if (pvMatch) {
+        applyBestMove(pvMatch[1]);
       }
 
       evalStateEl.textContent = "Analyzing";
@@ -758,6 +792,10 @@ function requestStockfishEval() {
   if (!stockfishReady || !stockfishWorker) {
     return;
   }
+
+  bestMoveFrom = null;
+  bestMoveTo = null;
+  if (evalBestMoveEl) evalBestMoveEl.textContent = "…";
 
   evalRequestId += 1;
   const fen = generateFen();
