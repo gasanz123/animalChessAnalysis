@@ -162,6 +162,7 @@ textarea {
 }
 
 .status-box,
+.eval-box,
 .moves-box,
 .legend-box {
   background: #171717;
@@ -200,4 +201,13 @@ h2 {
   .board {
     width: 100%;
   }
+}
+
+
+.eval-box p {
+  margin: 0.2rem 0;
+}
+
+#evalState {
+  color: var(--muted);
 }

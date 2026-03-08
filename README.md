@@ -10,7 +10,9 @@ A lightweight online analysis board inspired by the Lichess analysis layout, usi
 - Undo and redo support.
 - Move list tracking.
 - Board flipping.
-- Offline-friendly app (no external script/CDN dependency).
+- Castling support (both sides, both colors).
+- Stockfish numerical evaluation panel (score + depth).
+- Offline-friendly core board logic (engine eval requires worker network access).
 
 ## Piece animals
 
@@ -35,6 +37,7 @@ Then open <http://localhost:4173>.
 
 - Vanilla HTML/CSS/JavaScript
 - Custom in-browser chess move validation and FEN handling logic
+- Stockfish web worker integration for evaluation
 
 ## Codex PR prerequisites
 
