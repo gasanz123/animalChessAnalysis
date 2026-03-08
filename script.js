@@ -2,6 +2,9 @@ const boardEl = document.getElementById("board");
 const fenInput = document.getElementById("fenInput");
 const statusText = document.getElementById("statusText");
 const moveListEl = document.getElementById("moveList");
+const evalValueEl = document.getElementById("evalValue");
+const evalDepthEl = document.getElementById("evalDepth");
+const evalStateEl = document.getElementById("evalState");
 
 const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
 const ranks = [8, 7, 6, 5, 4, 3, 2, 1];
@@ -33,6 +36,10 @@ let selectedSquare = null;
 let legalTargets = [];
 let isFlipped = false;
 
+let stockfishWorker = null;
+let stockfishReady = false;
+let evalRequestId = 0;
+
 function toSquare(file, rank) {
   return `${files[file]}${8 - rank}`;
 }
@@ -43,6 +50,10 @@ function fromSquare(square) {
 
 function inBounds(file, rank) {
   return file >= 0 && file < 8 && rank >= 0 && rank < 8;
+}
+
+function oppositeColor(color) {
+  return color === "w" ? "b" : "w";
 }
 
 function cloneBoard(board) {
@@ -86,6 +97,15 @@ function restore(state) {
   game.history = [...state.history];
 }
 
+function normalizeCastlingRights(rights) {
+  const order = ["K", "Q", "k", "q"];
+  return order.filter((char) => rights.includes(char)).join("");
+}
+
+function removeCastlingRight(right) {
+  game.castling = normalizeCastlingRights(game.castling.replace(right, ""));
+}
+
 function loadFenIntoState(state, fen) {
   const [placement, turn, castling, enPassant, halfmove, fullmove] = fen.trim().split(/\s+/);
   if (!placement || !turn) {
@@ -123,8 +143,8 @@ function loadFenIntoState(state, fen) {
 
   state.board = nextBoard;
   state.turn = turn === "b" ? "b" : "w";
-  state.castling = castling && castling !== "-" ? castling : "";
-  state.enPassant = enPassant || "-";
+  state.castling = castling && castling !== "-" ? normalizeCastlingRights(castling) : "";
+  state.enPassant = enPassant && enPassant !== "-" ? enPassant : "-";
   state.halfmove = Number(halfmove) || 0;
   state.fullmove = Number(fullmove) || 1;
   state.history = [];
@@ -161,7 +181,7 @@ function getPiece(square) {
 function isSquareAttacked(square, byColor) {
   const { file, rank } = fromSquare(square);
 
-  const pawnDir = byColor === "w" ? -1 : 1;
+  const pawnDir = byColor === "w" ? 1 : -1;
   for (const deltaFile of [-1, 1]) {
     const f = file + deltaFile;
     const r = rank + pawnDir;
@@ -260,7 +280,33 @@ function inCheck(color) {
   if (!kingSquare) {
     return false;
   }
-  return isSquareAttacked(kingSquare, color === "w" ? "b" : "w");
+  return isSquareAttacked(kingSquare, oppositeColor(color));
+}
+
+function updateCastlingRightsForMove(move, piece, capturedPiece) {
+  if (piece.type === "k") {
+    if (piece.color === "w") {
+      removeCastlingRight("K");
+      removeCastlingRight("Q");
+    } else {
+      removeCastlingRight("k");
+      removeCastlingRight("q");
+    }
+  }
+
+  if (piece.type === "r") {
+    if (move.from === "h1") removeCastlingRight("K");
+    if (move.from === "a1") removeCastlingRight("Q");
+    if (move.from === "h8") removeCastlingRight("k");
+    if (move.from === "a8") removeCastlingRight("q");
+  }
+
+  if (capturedPiece?.type === "r") {
+    if (move.to === "h1") removeCastlingRight("K");
+    if (move.to === "a1") removeCastlingRight("Q");
+    if (move.to === "h8") removeCastlingRight("k");
+    if (move.to === "a8") removeCastlingRight("q");
+  }
 }
 
 function applyMove(move, saveHistory = true) {
@@ -268,28 +314,88 @@ function applyMove(move, saveHistory = true) {
   const to = fromSquare(move.to);
   const piece = game.board[from.rank][from.file];
 
+  let capturedPiece = game.board[to.rank][to.file];
+
+  if (move.isEnPassant) {
+    const captureRank = piece.color === "w" ? to.rank + 1 : to.rank - 1;
+    capturedPiece = game.board[captureRank][to.file];
+    game.board[captureRank][to.file] = null;
+  }
+
   game.board[to.rank][to.file] = {
     ...piece,
     type: move.promotion || piece.type,
   };
   game.board[from.rank][from.file] = null;
 
-  if (piece.type === "p" || move.captured) {
+  if (move.isCastle) {
+    const rookFrom = fromSquare(move.rookFrom);
+    const rookTo = fromSquare(move.rookTo);
+    const rook = game.board[rookFrom.rank][rookFrom.file];
+    game.board[rookTo.rank][rookTo.file] = rook;
+    game.board[rookFrom.rank][rookFrom.file] = null;
+  }
+
+  updateCastlingRightsForMove(move, piece, capturedPiece);
+
+  if (piece.type === "p" || capturedPiece) {
     game.halfmove = 0;
   } else {
     game.halfmove += 1;
+  }
+
+  if (piece.type === "p" && Math.abs(to.rank - from.rank) === 2) {
+    const epRank = piece.color === "w" ? to.rank + 1 : to.rank - 1;
+    game.enPassant = toSquare(to.file, epRank);
+  } else {
+    game.enPassant = "-";
   }
 
   if (piece.color === "b") {
     game.fullmove += 1;
   }
 
-  game.turn = game.turn === "w" ? "b" : "w";
-  game.enPassant = "-";
+  game.turn = oppositeColor(game.turn);
 
   if (saveHistory) {
     game.history.push(move.notation);
   }
+}
+
+function canCastleKingSide(piece, rank, file) {
+  if (piece.color === "w") {
+    if (!game.castling.includes("K") || rank !== 7 || file !== 4) return false;
+    if (game.board[7][5] || game.board[7][6]) return false;
+    const rook = game.board[7][7];
+    if (!rook || rook.type !== "r" || rook.color !== "w") return false;
+    if (inCheck("w") || isSquareAttacked("f1", "b") || isSquareAttacked("g1", "b")) return false;
+    return true;
+  }
+
+  if (!game.castling.includes("k") || rank !== 0 || file !== 4) return false;
+  if (game.board[0][5] || game.board[0][6]) return false;
+  const rook = game.board[0][7];
+  if (!rook || rook.type !== "r" || rook.color !== "b") return false;
+  if (inCheck("b") || isSquareAttacked("f8", "w") || isSquareAttacked("g8", "w")) return false;
+  return true;
+}
+
+function canCastleQueenSide(piece, rank, file) {
+  if (piece.color === "w") {
+    if (!game.castling.includes("Q") || rank !== 7 || file !== 4) return false;
+    if (game.board[7][1] || game.board[7][2] || game.board[7][3]) return false;
+    const rook = game.board[7][0];
+    if (!rook || rook.type !== "r" || rook.color !== "w") return false;
+    if (inCheck("w") || isSquareAttacked("d1", "b") || isSquareAttacked("c1", "b")) return false;
+    return true;
+  }
+
+  if (!game.castling.includes("q") || rank !== 0 || file !== 4) return false;
+  if (game.board[0][1] || game.board[0][2] || game.board[0][3]) return false;
+  const rook = game.board[0][0];
+  if (!rook || rook.type !== "r" || rook.color !== "b") return false;
+  if (inCheck("b") || isSquareAttacked("d8", "w") || isSquareAttacked("c8", "w")) return false;
+  return true;
 }
 
 function pseudoMoves(square) {
@@ -300,27 +406,12 @@ function pseudoMoves(square) {
 
   const { file, rank } = fromSquare(square);
   const moves = [];
-  const pushIfValid = (toFile, toRank, continuous = false) => {
-    let f = toFile;
-    let r = toRank;
 
-    while (inBounds(f, r)) {
-      const target = game.board[r][f];
-      if (!target) {
-        moves.push({ from: square, to: toSquare(f, r) });
-      } else {
-        if (target.color !== piece.color) {
-          moves.push({ from: square, to: toSquare(f, r), captured: true });
-        }
-        break;
-      }
-
-      if (!continuous) {
-        break;
-      }
-
-      f += Math.sign(f - file);
-      r += Math.sign(r - rank);
+  const pushLeap = (toFile, toRank) => {
+    if (!inBounds(toFile, toRank)) return;
+    const target = game.board[toRank][toFile];
+    if (!target || target.color !== piece.color) {
+      moves.push({ from: square, to: toSquare(toFile, toRank), captured: Boolean(target) });
     }
   };
 
@@ -345,28 +436,53 @@ function pseudoMoves(square) {
     for (const deltaFile of [-1, 1]) {
       const f = file + deltaFile;
       const r = rank + dir;
-      if (inBounds(f, r)) {
-        const target = game.board[r][f];
-        if (target && target.color !== piece.color) {
-          const to = toSquare(f, r);
-          if (r === 0 || r === 7) {
-            moves.push({ from: square, to, captured: true, promotion: "q" });
-          } else {
-            moves.push({ from: square, to, captured: true });
-          }
+      if (!inBounds(f, r)) continue;
+
+      const target = game.board[r][f];
+      const to = toSquare(f, r);
+
+      if (target && target.color !== piece.color) {
+        if (r === 0 || r === 7) {
+          moves.push({ from: square, to, captured: true, promotion: "q" });
+        } else {
+          moves.push({ from: square, to, captured: true });
         }
+      }
+
+      if (game.enPassant === to) {
+        moves.push({ from: square, to, captured: true, isEnPassant: true });
       }
     }
   }
 
   if (piece.type === "n") {
     const offsets = [[1, 2], [2, 1], [2, -1], [1, -2], [-1, -2], [-2, -1], [-2, 1], [-1, 2]];
-    offsets.forEach(([df, dr]) => pushIfValid(file + df, rank + dr));
+    offsets.forEach(([df, dr]) => pushLeap(file + df, rank + dr));
   }
 
   if (piece.type === "k") {
     const offsets = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
-    offsets.forEach(([df, dr]) => pushIfValid(file + df, rank + dr));
+    offsets.forEach(([df, dr]) => pushLeap(file + df, rank + dr));
+
+    if (canCastleKingSide(piece, rank, file)) {
+      moves.push({
+        from: square,
+        to: piece.color === "w" ? "g1" : "g8",
+        isCastle: true,
+        rookFrom: piece.color === "w" ? "h1" : "h8",
+        rookTo: piece.color === "w" ? "f1" : "f8",
+      });
+    }
+
+    if (canCastleQueenSide(piece, rank, file)) {
+      moves.push({
+        from: square,
+        to: piece.color === "w" ? "c1" : "c8",
+        isCastle: true,
+        rookFrom: piece.color === "w" ? "a1" : "a8",
+        rookTo: piece.color === "w" ? "d1" : "d8",
+      });
+    }
   }
 
   if (["b", "r", "q"].includes(piece.type)) {
@@ -412,6 +528,8 @@ function legalMovesForSquare(square) {
 }
 
 function allLegalMoves(color = game.turn) {
+  const previousTurn = game.turn;
+  game.turn = color;
   const moves = [];
   for (let rank = 0; rank < 8; rank += 1) {
     for (let file = 0; file < 8; file += 1) {
@@ -422,10 +540,14 @@ function allLegalMoves(color = game.turn) {
       }
     }
   }
+  game.turn = previousTurn;
   return moves;
 }
 
 function moveNotation(move) {
+  if (move.isCastle) {
+    return move.to[0] === "g" ? "O-O" : "O-O-O";
+  }
   return `${move.from}${move.to}${move.promotion ? "=Q" : ""}`;
 }
 
@@ -474,6 +596,7 @@ function renderBoard() {
     const squareEl = document.createElement("button");
     squareEl.type = "button";
     squareEl.className = `square ${squareColor(fileIndex, rankIndex)}`;
+    squareEl.dataset.square = square;
 
     if (selectedSquare === square) {
       squareEl.classList.add("selected");
@@ -530,6 +653,7 @@ function updateStatus() {
     statusText.textContent = `${color} to move${inCheck(game.turn) ? " (check)" : ""}.`;
   }
   buildMoveList();
+  requestStockfishEval();
 }
 
 function selectSquare(square) {
@@ -574,6 +698,74 @@ function loadFen() {
   clearSelection();
   renderBoard();
   updateStatus();
+}
+
+function initStockfish() {
+  if (!evalValueEl || !evalDepthEl || !evalStateEl) return;
+
+  evalValueEl.textContent = "—";
+  evalDepthEl.textContent = "—";
+  evalStateEl.textContent = "Starting Stockfish…";
+
+  try {
+    stockfishWorker = new Worker("https://cdn.jsdelivr.net/npm/stockfish@16.0.0/src/stockfish.js");
+
+    stockfishWorker.onmessage = (event) => {
+      const line = String(event.data || "").trim();
+
+      if (line === "uciok") {
+        stockfishWorker.postMessage("isready");
+        return;
+      }
+
+      if (line === "readyok") {
+        stockfishReady = true;
+        evalStateEl.textContent = "Stockfish ready";
+        requestStockfishEval();
+        return;
+      }
+
+      if (!line.includes("score")) return;
+
+      const depthMatch = line.match(/\bdepth\s+(\d+)/);
+      const cpMatch = line.match(/\bscore\s+cp\s+(-?\d+)/);
+      const mateMatch = line.match(/\bscore\s+mate\s+(-?\d+)/);
+
+      if (depthMatch) {
+        evalDepthEl.textContent = depthMatch[1];
+      }
+
+      if (cpMatch) {
+        evalValueEl.textContent = `${(Number(cpMatch[1]) / 100).toFixed(2)}`;
+      } else if (mateMatch) {
+        evalValueEl.textContent = `#${mateMatch[1]}`;
+      }
+
+      evalStateEl.textContent = "Analyzing";
+    };
+
+    stockfishWorker.onerror = () => {
+      evalStateEl.textContent = "Stockfish unavailable (worker blocked).";
+    };
+
+    stockfishWorker.postMessage("uci");
+  } catch (error) {
+    evalStateEl.textContent = "Stockfish unavailable in this environment.";
+  }
+}
+
+function requestStockfishEval() {
+  if (!stockfishReady || !stockfishWorker) {
+    return;
+  }
+
+  evalRequestId += 1;
+  const fen = generateFen();
+  evalStateEl.textContent = "Analyzing";
+  evalDepthEl.textContent = "…";
+  stockfishWorker.postMessage("stop");
+  stockfishWorker.postMessage(`position fen ${fen}`);
+  stockfishWorker.postMessage("go depth 12");
 }
 
 document.getElementById("newGameBtn").addEventListener("click", () => {
@@ -621,4 +813,5 @@ fenInput.addEventListener("keydown", (event) => {
 });
 
 renderBoard();
+initStockfish();
 updateStatus();
