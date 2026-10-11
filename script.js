@@ -19,6 +19,55 @@ const animalMap = {
   p: "🐺",
 };
 
+const classicMap = {
+  w: { k: "♔", q: "♕", r: "♖", b: "♗", n: "♘", p: "♙" },
+  b: { k: "♚", q: "♛", r: "♜", b: "♝", n: "♞", p: "♟" },
+};
+
+const pieceOrder = ["k", "q", "r", "b", "n", "p"];
+
+function savedPieceSet() {
+  try {
+    return localStorage.getItem("animalChessPieceSet") === "standard" ? "standard" : "animal";
+  } catch {
+    return "animal";
+  }
+}
+
+let pieceSet = savedPieceSet();
+
+function pieceGlyph(piece) {
+  return pieceSet === "standard" ? classicMap[piece.color][piece.type] : animalMap[piece.type];
+}
+
+function renderPieceSetUI() {
+  boardEl.dataset.pieceSet = pieceSet;
+  document.querySelectorAll(".piece-set-option").forEach((button) => {
+    const active = button.dataset.pieceSet === pieceSet;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+
+  document.querySelectorAll(".palette-piece").forEach((button) => {
+    const [color, type] = button.dataset.piece;
+    button.textContent = pieceGlyph({ color, type });
+    button.classList.toggle("piece-set-standard", pieceSet === "standard");
+    button.classList.toggle("piece-set-animal", pieceSet === "animal");
+  });
+
+  document.getElementById("legendTitle").textContent = pieceSet === "standard" ? "Classic set" : "Animal set";
+  const legend = document.getElementById("pieceLegend");
+  legend.replaceChildren();
+  pieceOrder.forEach((type) => {
+    const item = document.createElement("li");
+    const symbol = document.createElement("span");
+    symbol.className = "legend-symbol";
+    symbol.textContent = pieceGlyph({ color: "w", type });
+    item.append(symbol, document.createTextNode(pieceNames[type]));
+    legend.append(item);
+  });
+}
+
 const pieceNames = {
   k: "King",
   q: "Queen",
@@ -607,6 +656,7 @@ function renderBoard() {
     squareEl.type = "button";
     squareEl.className = `square ${squareColor(fileIndex, rankIndex)}`;
     squareEl.dataset.square = square;
+    squareEl.setAttribute("aria-label", piece ? `${square}, ${piece.color === "w" ? "White" : "Black"} ${pieceNames[piece.type]}` : `${square}, empty`);
 
     if (selectedSquare === square) {
       squareEl.classList.add("selected");
@@ -640,7 +690,7 @@ function renderBoard() {
     if (piece) {
       const pieceEl = document.createElement("div");
       pieceEl.className = `piece ${piece.color === "w" ? "white" : "black"}`;
-      pieceEl.textContent = animalMap[piece.type];
+      pieceEl.textContent = pieceGlyph(piece);
       pieceEl.title = `${piece.color === "w" ? "White" : "Black"} ${pieceNames[piece.type]}`;
       squareEl.append(pieceEl);
     }
@@ -972,6 +1022,20 @@ document.getElementById("flipBtn").addEventListener("click", () => {
   renderBoard();
 });
 
+document.querySelectorAll(".piece-set-option").forEach((button) => {
+  button.addEventListener("click", () => {
+    if (pieceSet === button.dataset.pieceSet) return;
+    pieceSet = button.dataset.pieceSet;
+    try {
+      localStorage.setItem("animalChessPieceSet", pieceSet);
+    } catch {
+      // The switch still works when browser storage is unavailable.
+    }
+    renderPieceSetUI();
+    renderBoard();
+  });
+});
+
 document.getElementById("loadFenBtn").addEventListener("click", loadFen);
 
 fenInput.addEventListener("keydown", (event) => {
@@ -1026,6 +1090,7 @@ document.getElementById("doneEditingBtn").addEventListener("click", () => {
   exitEditorMode(true);
 });
 
+renderPieceSetUI();
 renderBoard();
 initStockfish();
 updateStatus();

@@ -3,26 +3,39 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Animal Chess Analysis Board</title>
-    <link rel="stylesheet" href="styles.css" />
-    <script defer src="script.js?v=7f0e70c"></script>
+    <meta name="theme-color" content="#10151d" />
+    <title>Animal Chess — Analysis Board</title>
+    <link rel="stylesheet" href="styles.css?v=design-1" />
+    <script defer src="script.js?v=design-1"></script>
   </head>
   <body>
     <main class="app-shell">
       <section class="board-panel">
-        <header>
-          <h1>Animal Analysis Board</h1>
-          <p>Lichess-inspired analysis with 3D-style animal pieces.</p>
+        <header class="board-header">
+          <div>
+            <p class="eyebrow">ANIMAL CHESS <span class="eyebrow-dot"></span> ANALYSIS</p>
+            <h1>Every move tells a story.</h1>
+            <p class="intro">Explore the position with live Stockfish analysis.</p>
+          </div>
+          <div class="piece-set-control" role="group" aria-label="Piece set">
+            <span class="piece-set-label">PIECE SET</span>
+            <div class="segmented-control">
+              <button type="button" class="piece-set-option active" data-piece-set="animal" aria-pressed="true">Animal</button>
+              <button type="button" class="piece-set-option" data-piece-set="standard" aria-pressed="false">Classic</button>
+            </div>
+          </div>
         </header>
-        <div id="board" class="board" aria-label="Chess board"></div>
+        <div class="board-frame"><div id="board" class="board" aria-label="Chess board"></div></div>
+        <p class="board-hint">Select a piece to see its legal moves.</p>
       </section>
 
       <aside class="control-panel">
+        <div class="panel-heading"><span class="panel-heading-mark">✦</span><span>Analysis desk</span></div>
         <div class="controls">
-          <button id="newGameBtn">New game</button>
-          <button id="undoBtn">◀ Undo</button>
-          <button id="redoBtn">Redo ▶</button>
+          <button id="newGameBtn" class="primary-action">New game</button>
           <button id="flipBtn">Flip board</button>
+          <button id="undoBtn">← Undo</button>
+          <button id="redoBtn">Redo →</button>
           <button id="editPositionBtn" class="span-2">Edit position</button>
         </div>
 
@@ -63,39 +76,33 @@
           </div>
         </div>
 
-        <label for="fenInput">FEN</label>
-        <textarea id="fenInput" rows="3" spellcheck="false"></textarea>
-        <button id="loadFenBtn">Load FEN</button>
+        <div class="fen-box">
+          <label for="fenInput">BOARD POSITION <span class="field-note">FEN</span></label>
+          <textarea id="fenInput" rows="2" spellcheck="false"></textarea>
+          <button id="loadFenBtn">Load position</button>
+        </div>
 
         <div class="status-box">
-          <h2>Status</h2>
+          <h2><span class="section-index">01</span> Game status</h2>
           <p id="statusText"></p>
         </div>
 
         <div class="eval-box">
-          <h2>Stockfish eval</h2>
-          <p><strong>White eval:</strong> <span id="evalValue">—</span></p>
+          <h2><span class="section-index">02</span> Stockfish analysis</h2>
+          <div class="eval-main"><span class="eval-caption">WHITE EVALUATION</span><strong id="evalValue">—</strong></div>
           <p class="eval-note">Positive scores favor White.</p>
-          <p><strong>Depth:</strong> <span id="evalDepth">—</span></p>
-          <p><strong>Best move:</strong> <span id="evalBestMove">—</span></p>
+          <div class="eval-details"><p><span>Depth</span><strong id="evalDepth">—</strong></p><p><span>Best move</span><strong id="evalBestMove">—</strong></p></div>
           <p id="evalState">Waiting</p>
         </div>
 
         <div class="moves-box">
-          <h2>Move list</h2>
+          <h2><span class="section-index">03</span> Move history</h2>
           <ol id="moveList"></ol>
         </div>
 
         <div class="legend-box">
-          <h2>Animal set</h2>
-          <ul>
-            <li>🦁 King</li>
-            <li>🦅 Queen</li>
-            <li>🐘 Rook</li>
-            <li>🦒 Bishop</li>
-            <li>🐎 Knight</li>
-            <li>🐺 Pawn</li>
-          </ul>
+          <h2><span class="section-index">04</span> <span id="legendTitle">Animal set</span></h2>
+          <ul id="pieceLegend"></ul>
         </div>
       </aside>
     </main>
