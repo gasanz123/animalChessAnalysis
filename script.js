@@ -98,6 +98,54 @@ let evalSearchActive = false;
 let discardActiveEval = false;
 let bestMoveFrom = null;
 let bestMoveTo = null;
+let boardScene = null;
+let boardView = "3d";
+try {
+  if (localStorage.getItem("animalChessBoardView") === "2d") boardView = "2d";
+} catch {
+  // The default 3D view also works without browser storage.
+}
+
+function setBoardView(view) {
+  boardView = view === "3d" && boardScene ? "3d" : "2d";
+  document.getElementById("board3d").classList.toggle("hidden", boardView !== "3d");
+  boardEl.classList.toggle("hidden", boardView !== "2d");
+  document.getElementById("cameraControls").classList.toggle("hidden", boardView !== "3d");
+  document.querySelectorAll(".view-option").forEach((button) => {
+    const active = button.dataset.boardView === boardView;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  document.getElementById("boardHint").textContent = boardView === "3d"
+    ? "Click a piece to move · Drag to rotate · Arrow keys + Enter to play"
+    : "Select a piece to see its legal moves.";
+  renderBoard();
+}
+
+function initBoardScene() {
+  const fallback = () => {
+    boardScene = null;
+    document.querySelector('[data-board-view="3d"]').disabled = true;
+    setBoardView("2d");
+    document.getElementById("boardHint").textContent = "3D is unavailable in this browser. You can play in 2D.";
+  };
+  try {
+    boardScene = new window.ChessScene(
+      document.getElementById("chessCanvas"), document.getElementById("sceneCoordinates"),
+      (square) => handleSquareClick(square), fallback
+    );
+    boardScene.onCameraChange = (degrees) => { document.getElementById("cameraTilt").value = degrees; };
+    boardScene.onFocusSquare = (square) => {
+      const piece = getPiece(square);
+      document.getElementById("boardAnnouncement").textContent = piece
+        ? `${square}, ${piece.color === "w" ? "White" : "Black"} ${pieceNames[piece.type]}`
+        : `${square}, empty`;
+    };
+    setBoardView(boardView);
+  } catch {
+    fallback();
+  }
+}
 
 function toSquare(file, rank) {
   return `${files[file]}${8 - rank}`;
@@ -698,6 +746,10 @@ function renderBoard() {
     squareEl.addEventListener("click", () => handleSquareClick(square));
     boardEl.append(squareEl);
   });
+  if (boardScene) boardScene.update({
+    board: game.board, pieceSet, flipped: isFlipped, selected: selectedSquare,
+    targets: legalTargets, bestFrom: bestMoveFrom, bestTo: bestMoveTo,
+  });
 }
 
 function buildMoveList() {
@@ -1022,6 +1074,20 @@ document.getElementById("flipBtn").addEventListener("click", () => {
   renderBoard();
 });
 
+document.querySelectorAll(".view-option").forEach((button) => {
+  button.addEventListener("click", () => {
+    setBoardView(button.dataset.boardView);
+    try { localStorage.setItem("animalChessBoardView", boardView); } catch { /* Optional preference. */ }
+  });
+});
+document.getElementById("rotateLeftBtn").addEventListener("click", () => boardScene?.rotate(-Math.PI / 6));
+document.getElementById("rotateRightBtn").addEventListener("click", () => boardScene?.rotate(Math.PI / 6));
+document.getElementById("cameraTilt").addEventListener("input", (event) => boardScene?.tilt(Number(event.target.value)));
+document.getElementById("resetCameraBtn").addEventListener("click", () => {
+  boardScene?.reset();
+  document.getElementById("cameraTilt").value = 53;
+});
+
 document.querySelectorAll(".piece-set-option").forEach((button) => {
   button.addEventListener("click", () => {
     if (pieceSet === button.dataset.pieceSet) return;
@@ -1091,6 +1157,7 @@ document.getElementById("doneEditingBtn").addEventListener("click", () => {
 });
 
 renderPieceSetUI();
+initBoardScene();
 renderBoard();
 initStockfish();
 updateStatus();

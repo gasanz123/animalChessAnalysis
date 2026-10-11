@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#10151d" />
     <title>Animal Chess — Analysis Board</title>
-    <link rel="stylesheet" href="styles.css?v=design-1" />
-    <script defer src="script.js?v=9641fe8"></script>
+    <link rel="stylesheet" href="styles.css?v=951d8f17" />
+    <script defer src="chess3d.js?v=9dc36e86"></script>
+    <script defer src="script.js?v=c858f853"></script>
   </head>
   <body>
     <main class="app-shell">
@@ -25,8 +26,25 @@
             </div>
           </div>
         </header>
-        <div class="board-frame"><div id="board" class="board" aria-label="Chess board"></div></div>
-        <p class="board-hint">Select a piece to see its legal moves.</p>
+        <div class="view-toolbar">
+          <div class="segmented-control" role="group" aria-label="Board view">
+            <button type="button" class="view-option" data-board-view="2d" aria-pressed="false">2D</button>
+            <button type="button" class="view-option active" data-board-view="3d" aria-pressed="true">3D</button>
+          </div>
+          <div id="cameraControls" class="camera-controls" aria-label="3D camera controls">
+            <button id="rotateLeftBtn" type="button" aria-label="Rotate camera left" title="Rotate left">↶</button>
+            <label for="cameraTilt">Tilt</label>
+            <input id="cameraTilt" type="range" min="30" max="72" value="53" aria-label="Camera tilt" />
+            <button id="rotateRightBtn" type="button" aria-label="Rotate camera right" title="Rotate right">↷</button>
+            <button id="resetCameraBtn" type="button">Reset view</button>
+          </div>
+        </div>
+        <div class="board-frame">
+          <div id="board3d" class="board-3d"><canvas id="chessCanvas" tabindex="0" aria-label="3D chess board. Drag to rotate. Use arrow keys to choose a square, then Enter to select or move."></canvas><div id="sceneCoordinates" class="scene-coordinates" aria-hidden="true"></div></div>
+          <div id="board" class="board hidden" aria-label="Chess board"></div>
+        </div>
+        <p id="boardHint" class="board-hint">Click a piece to move · Drag to rotate · Arrow keys + Enter to play</p>
+        <p id="boardAnnouncement" class="sr-only" aria-live="polite"></p>
       </section>
 
       <aside class="control-panel">

@@ -211,6 +211,21 @@ h1 {
   text-shadow: 0 3px 5px rgba(0,0,0,.35);
 }
 .board-hint { margin: 15px 1px 0; color: var(--muted); font-size: .78rem; }
+.view-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin: -4px 0 14px; }
+.view-toolbar .segmented-control button { min-width: 43px; padding: 7px 11px; }
+.camera-controls { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: .74rem; }
+.camera-controls button { padding: 6px 9px; border: 1px solid var(--line); border-radius: 7px; background: #18262f; color: var(--text); font-size: .76rem; }
+.camera-controls button:hover { border-color: var(--accent); }
+.camera-controls input { width: 76px; accent-color: var(--accent); }
+.segmented-control button:disabled { opacity: .4; cursor: not-allowed; }
+.board-3d { position: relative; width: 100%; aspect-ratio: 1 / 1; overflow: hidden; border-radius: 7px; background: radial-gradient(ellipse at 50% 55%, #3a4543 0%, #1b292f 56%, #111e26 100%); }
+.board-3d::before { content: ""; position: absolute; inset: 32% 6% 10%; border-radius: 50%; background: #0008; filter: blur(28px); pointer-events: none; }
+#chessCanvas { position: relative; display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+#chessCanvas:active { cursor: grabbing; }
+#chessCanvas:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+.scene-coordinates { position: absolute; inset: 0; pointer-events: none; }
+.scene-coordinates span { position: absolute; transform: translate(-50%, -50%); color: #e4c184; font: 700 clamp(8px, .9vw, 11px) ui-monospace, monospace; text-shadow: 0 1px 2px #000; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 
 .control-panel {
   padding: clamp(16px, 1.8vw, 25px);
@@ -353,4 +368,7 @@ h2 {
   .board[data-piece-set="standard"] .piece { font-size: clamp(1.5rem, 9vw, 3rem); }
   .legend-box ul { grid-template-columns: repeat(2, 1fr); }
   .fen-box { grid-template-columns: 1fr; }
+  .camera-controls { flex-wrap: wrap; gap: 5px; }
+  .camera-controls input { width: 60px; }
+  .camera-controls button { padding: 6px; }
 }
