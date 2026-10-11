@@ -17,6 +17,32 @@
     const c=Math.cos(angle), s=Math.sin(angle);
     return new Float32Array([c,0,-s,0, 0,1,0,0, s,0,c,0, x,y,z,1]);
   };
+  const turnX = a => new Float32Array([1,0,0,0, 0,Math.cos(a),Math.sin(a),0, 0,-Math.sin(a),Math.cos(a),0, 0,0,0,1]);
+  const turnZ = a => new Float32Array([Math.cos(a),Math.sin(a),0,0, -Math.sin(a),Math.cos(a),0,0, 0,0,1,0, 0,0,0,1]);
+  const sizeY = amount => new Float32Array([1,0,0,0, 0,amount,0,0, 0,0,1,0, 0,0,0,1]);
+  const around = (base,pivot,[x,y,z]) => mul(base,mul(model(...pivot),mul(model(0,0,0,y),mul(turnZ(z),mul(turnX(x),model(...pivot.map(v=>-v)))))));
+  function pose(type,animal,time,seed) {
+    const t=time+seed, wave=Math.sin(t*1.6), slow=Math.sin(t*.86);
+    const out={lift:0,lean:0,turn:0,breath:0,parts:{}};
+    if(animal) {
+      out.breath=.012*wave;
+      out.lift=.006*(1+Math.sin(t*2));
+      if(type==="k") {out.parts.head=[.035*slow,.12*Math.sin(t*.72),.025*wave];out.parts.tail=[0,.22*Math.sin(t*2.2),0];}
+      if(type==="q") {const flap=.25*Math.sin(t*2.5);out.parts.wingLeft=[0,0,-flap];out.parts.wingRight=[0,0,flap];out.lift+=.014*Math.max(0,flap);}
+      if(type==="r") {out.parts.trunk=[.08*Math.sin(t*1.3),.22*Math.sin(t*1.6),.035*slow];out.lean=.012*slow;}
+      if(type==="b") {out.parts.neck=[.065*Math.sin(t*.9),.055*slow,.04*Math.sin(t*1.15)];}
+      if(type==="n") {out.parts.head=[.10*Math.sin(t*1.65),.025*slow,.025*wave];out.lift+=.012*Math.max(0,wave);}
+      if(type==="p") {out.parts.head=[.045*slow,.09*Math.sin(t*1.2),.02*wave];out.parts.tail=[0,.48*Math.sin(t*3.1),.12*Math.sin(t*3.1)];}
+    } else {
+      const amplitude={p:.025,r:.008,n:.018,b:.038,q:.027,k:.014}[type];
+      out.lean=amplitude*slow;
+      out.breath=.006*wave;
+      out.lift=(type==="q"?.014:.007)*(1+Math.sin(t*(type==="p"?2.1:1.2)));
+      out.turn=(type==="q"?.035:type==="k"?.012:.006)*Math.sin(t*.7);
+      if(type==="n") out.parts.head=[.065*Math.sin(t*1.35),0,0];
+    }
+    return out;
+  }
   const rotate = (v, angles) => {
     let [x,y,z]=v;
     for (let axis=0; axis<3; axis++) {
@@ -73,9 +99,10 @@
   }
   function figure(type, animal) {
     const m={body:[],trim:[],eyes:[]};
-    const ball=(p,s,part="body",a=[0,0,0]) => shape(m[part],BALL,p,s,a);
-    const cube=(p,s,part="body",a=[0,0,0]) => shape(m[part],BOX,p,s,a);
-    const turned=(profile,part="body",p=[0,0,0],a=[0,0,0]) => shape(m[part],lathe(profile),p,[1,1,1],a);
+    const part=(name) => m[name] || (m[name]=[]);
+    const ball=(p,s,name="body",a=[0,0,0]) => shape(part(name),BALL,p,s,a);
+    const cube=(p,s,name="body",a=[0,0,0]) => shape(part(name),BOX,p,s,a);
+    const turned=(profile,name="body",p=[0,0,0],a=[0,0,0]) => shape(part(name),lathe(profile),p,[1,1,1],a);
     const cone=(p,r,h,part="body",a=[0,0,0]) => turned([[0,0],[r,0],[r,.025],[0,h]],part,p,a);
     const eyes=(y,z,width=.14) => [-1,1].forEach(s=>ball([s*width,y,z],[.035,.04,.035],"eyes"));
     turned([[0,0],[.32,0],[.39,.035],[.39,.09],[.35,.15],[.3,.19],[.28,.23],[0,.23]]);
@@ -101,41 +128,42 @@
     } else if(type==="n") {
       // Horse / knight: a sloping neck, long muzzle, upright ears and mane.
       ball([0,.58,.065],[.22,.46,.23],"body",[.25,0,0]);
-      ball([0,1.04,-.08],[.235,.26,.25]);
-      ball([0,.99,-.31],[.18,.15,.29],"body",[-.25,0,0]);
-      for(const x of [-.13,.13]) cone([x,1.15,-.035],.075,.32,"body",[-.18,0,0]);
+      ball([0,1.04,-.08],[.235,.26,.25],"headBody");
+      ball([0,.99,-.31],[.18,.15,.29],"headBody",[-.25,0,0]);
+      for(const x of [-.13,.13]) cone([x,1.15,-.035],.075,.32,"headBody",[-.18,0,0]);
       ball([0,.78,.245],[.09,.42,.075],"trim",[.35,0,0]);
-      ball([0,1.05,-.565],[.145,.035,.023],"trim");
-      for(const x of [-.205,.205]) ball([x,1.1,-.21],[.025,.043,.05],"eyes");
+      ball([0,1.05,-.565],[.145,.035,.023],"headTrim");
+      for(const x of [-.205,.205]) ball([x,1.1,-.21],[.025,.043,.05],"headEyes");
     } else if(type==="p") {
       // Wolf: seated haunches, muzzle, pointed ears and a curled tail.
       ball([0,.46,.055],[.25,.3,.23]);
       ball([0,.71,-.035],[.205,.27,.2]);
-      ball([0,.97,-.10],[.235,.225,.21]);
-      ball([0,.89,-.30],[.135,.105,.17]);
-      for(const x of [-.16,.16]) cone([x,1.05,-.055],.11,.28);
-      ball([0,.93,-.445],[.065,.045,.045],"eyes");
-      eyes(1.01,-.282,.125);
+      ball([0,.97,-.10],[.235,.225,.21],"headBody");
+      ball([0,.89,-.30],[.135,.105,.17],"headBody");
+      for(const x of [-.16,.16]) cone([x,1.05,-.055],.11,.28,"headBody");
+      ball([0,.93,-.445],[.065,.045,.045],"headEyes");
+      for(const x of [-.125,.125]) ball([x,1.01,-.282],[.035,.04,.035],"headEyes");
       for(const x of [-.15,.15]) ball([x,.27,-.20],[.105,.08,.16]);
-      ball([.20,.34,.20],[.105,.10,.28],"trim",[0,-.6,0]);
+      ball([.20,.34,.20],[.105,.10,.28],"tailTrim",[0,-.6,0]);
     } else if(type==="k") {
       // Lion: mane around the face, small round ears and front paws.
       ball([0,.57,.02],[.29,.36,.27]);
-      ball([0,1.05,-.035],[.37,.39,.24],"trim");
-      ball([0,1.04,-.19],[.255,.265,.22]);
-      for(const x of [-.21,.21]) ball([x,1.26,-.11],[.095,.11,.08]);
-      for(const x of [-.10,.10]) ball([x,.95,-.385],[.11,.09,.09]);
-      ball([0,1.01,-.453],[.065,.04,.035],"eyes");
-      eyes(1.12,-.382);
+      ball([0,1.05,-.035],[.37,.39,.24],"headTrim");
+      ball([0,1.04,-.19],[.255,.265,.22],"headBody");
+      for(const x of [-.21,.21]) ball([x,1.26,-.11],[.095,.11,.08],"headBody");
+      for(const x of [-.10,.10]) ball([x,.95,-.385],[.11,.09,.09],"headBody");
+      ball([0,1.01,-.453],[.065,.04,.035],"headEyes");
+      for(const x of [-.14,.14]) ball([x,1.12,-.382],[.035,.04,.035],"headEyes");
       for(const x of [-.19,.19]) {ball([x,.47,-.18],[.09,.24,.1]);ball([x,.27,-.22],[.13,.08,.16]);}
-      ball([.27,.45,.17],[.065,.24,.07],"trim",[0,0,-.5]);
+      ball([.27,.45,.17],[.065,.24,.07],"tailTrim",[0,0,-.5]);
     } else if(type==="q") {
       // Eagle: raised wings, a hooked golden beak and breast.
       ball([0,.70,0],[.24,.41,.21]);
       ball([0,1.1,-.055],[.185,.195,.18]);
       for(const s of [-1,1]) {
-        ball([s*.29,.77,.015],[.11,.43,.22],"trim",[0,0,-s*.55]);
-        ball([s*.43,.97,.055],[.065,.31,.17],"body",[0,0,-s*.40]);
+        const wing=s<0?"wingLeft":"wingRight";
+        ball([s*.29,.77,.015],[.11,.43,.22],wing+"Trim",[0,0,-s*.55]);
+        ball([s*.43,.97,.055],[.065,.31,.17],wing+"Body",[0,0,-s*.40]);
         cube([s*.1,.29,-.10],[.1,.06,.22],"trim");
       }
       cone([0,1.10,-.19],.10,.21,"trim",[-PI/2,0,0]);
@@ -150,22 +178,22 @@
         ball([s*.22,.38,-.11],[.11,.22,.11]);
         cone([s*.16,.65,-.31],.045,.18,"trim",[-1.3,0,0]);
       }
-      ball([0,.64,-.365],[.10,.26,.10]);
-      ball([0,.43,-.44],[.095,.095,.15],"body",[-.45,0,0]);
+      ball([0,.64,-.365],[.10,.26,.10],"trunkBody");
+      ball([0,.43,-.44],[.095,.095,.15],"trunkBody",[-.45,0,0]);
       eyes(.94,-.326,.18);
     } else if(type==="b") {
       // Giraffe: tall neck, ossicones, ears and a long muzzle.
       ball([0,.48,.03],[.255,.28,.23]);
-      ball([0,.91,-.035],[.115,.53,.13],"body",[-.10,0,0]);
-      ball([0,1.37,-.15],[.16,.18,.265]);
+      ball([0,.91,-.035],[.115,.53,.13],"neckBody",[-.10,0,0]);
+      ball([0,1.37,-.15],[.16,.18,.265],"neckBody");
       for(const s of [-1,1]) {
-        ball([s*.19,1.40,-.04],[.15,.045,.075],"trim",[0,0,s*.3]);
-        turned([[0,0],[.028,0],[.028,.17],[0,.17]],"trim",[s*.08,1.47,-.02]);
-        ball([s*.08,1.64,-.02],[.052,.045,.052],"trim");
-        ball([s*.16,1.40,-.18],[.025,.037,.037],"eyes");
+        ball([s*.19,1.40,-.04],[.15,.045,.075],"neckTrim",[0,0,s*.3]);
+        turned([[0,0],[.028,0],[.028,.17],[0,.17]],"neckTrim",[s*.08,1.47,-.02]);
+        ball([s*.08,1.64,-.02],[.052,.045,.052],"neckTrim");
+        ball([s*.16,1.40,-.18],[.025,.037,.037],"neckEyes");
       }
-      for(let i=0;i<4;i++) ball([.104,.67+i*.16,-.04],[.015,.045,.06],"trim");
-      ball([0,1.32,-.385],[.12,.065,.035],"trim");
+      for(let i=0;i<4;i++) ball([.104,.67+i*.16,-.04],[.015,.045,.06],"neckTrim");
+      ball([0,1.32,-.385],[.12,.065,.035],"neckTrim");
     }
     return m;
   }
@@ -173,6 +201,7 @@
     constructor(canvas, labels, onSquare, onError) {
       this.canvas=canvas; this.labels=labels; this.onSquare=onSquare; this.onError=onError;
       this.azimuth=-.25; this.elevation=53*PI/180; this.focusSquare=null; this.drag=null;
+      this.motion=true; this.active=false; this.frame=null; this.lastFrame=0; this.animationTime=0; this.transitions=[];
       const gl=canvas.getContext("webgl",{antialias:true,alpha:true});
       if(!gl) throw new Error("WebGL is unavailable");
       this.gl=gl;
@@ -214,6 +243,7 @@
       ]) {const el=document.createElement("span");el.textContent=text;labels.append(el);this.coordinates.push({el,p});}
       this.bindInput();
       this.observer=new ResizeObserver(()=>this.draw()); this.observer.observe(canvas);
+      document.addEventListener("visibilitychange",()=>{ if(document.hidden)this.stopLoop(); else this.startLoop(); });
       canvas.addEventListener("webglcontextlost",e=>{e.preventDefault();this.lost=true;onError();});
     }
     upload(data) {
@@ -231,6 +261,34 @@
       gl.uniform1f(this.loc.unlit,unlit); gl.drawArrays(gl.TRIANGLES,0,mesh.count);
     }
     update(state) {this.state=state;this.draw();}
+    stopLoop() {if(this.frame!==null){cancelAnimationFrame(this.frame);this.frame=null;}}
+    startLoop() {
+      if(this.frame!==null||!this.active||!this.motion||document.hidden||this.lost)return;
+      this.frame=requestAnimationFrame(now=>{
+        this.frame=null;
+        if(now-this.lastFrame>=33){this.lastFrame=now;this.animationTime=now/1000;this.draw();}
+        this.startLoop();
+      });
+    }
+    setActive(active) {
+      this.active=active;
+      if(!active){this.stopLoop();this.clearMove();return;}
+      this.draw();this.startLoop();
+    }
+    setMotion(enabled) {
+      this.motion=enabled;
+      if(!enabled){this.stopLoop();this.clearMove();this.animationTime=0;}
+      else this.startLoop();
+      this.draw();
+    }
+    clearMove() {this.transitions=[];this.draw();}
+    animateMove(move,piece) {
+      if(!this.active||!this.motion||!piece)return;
+      const start=performance.now();
+      this.transitions=[{from:move.from,to:move.to,piece:{...piece},start}];
+      if(move.isCastle&&move.rookFrom&&move.rookTo) this.transitions.push({from:move.rookFrom,to:move.rookTo,piece:{type:"r",color:piece.color},start});
+      this.startLoop();
+    }
     camera() {
       const angle=this.azimuth+(this.state?.flipped?PI:0), distance=18.5;
       this.eye=[Math.sin(angle)*Math.cos(this.elevation)*distance,Math.sin(this.elevation)*distance,Math.cos(angle)*Math.cos(this.elevation)*distance];
@@ -258,15 +316,44 @@
         if(square) this.paint(this.outline,model(...point(square)),color,1);
       }
       for(const square of this.state.targets||[]) this.paint(this.marker,model(...point(square)),[.13,.28,.22,.8],1);
-      gl.depthMask(false);
-      for(let r=0;r<8;r++)for(let f=0;f<8;f++)if(this.state.board[r][f])this.paint(this.shadow,model(f-3.5,0,r-3.5),[.04,.055,.045,.23],1);
-      gl.depthMask(true);
+      const now=performance.now(), movement=new Map();
+      this.transitions=this.transitions.filter(transition=>now-transition.start<520);
+      for(const transition of this.transitions) {
+        const progress=Math.max(0,Math.min(1,(now-transition.start)/520)), eased=progress*progress*(3-2*progress);
+        const from=point(transition.from),to=point(transition.to);
+        movement.set(transition.to,{
+          x:from[0]+(to[0]-from[0])*eased,
+          y:.022+.34*Math.sin(progress*PI),
+          z:from[2]+(to[2]-from[2])*eased,
+          type:transition.piece.type,
+        });
+      }
+      const figures=[];
       for(let r=0;r<8;r++)for(let f=0;f<8;f++) {
         const piece=this.state.board[r][f];if(!piece)continue;
-        const white=piece.color==="w", m=model(f-3.5,.022,r-3.5,white?0:PI), parts=this.meshes[this.state.pieceSet+piece.type];
-        this.paint(parts.body,m,white?[.97,.90,.73,1]:[.12,.19,.22,1]);
-        this.paint(parts.trim,m,white?[.60,.37,.12,1]:[.72,.49,.19,1]);
-        this.paint(parts.eyes,m,white?[.035,.055,.05,1]:[.97,.77,.39,1]);
+        const square=String.fromCharCode(97+f)+(8-r), moving=movement.get(square);
+        figures.push({piece,f,r,x:moving?.x??f-3.5,y:moving?.y??.022,z:moving?.z??r-3.5,type:moving?.type??piece.type});
+      }
+      gl.depthMask(false);
+      for(const figure of figures) this.paint(this.shadow,model(figure.x,0,figure.z),[.04,.055,.045,.23],1);
+      gl.depthMask(true);
+      for(const figure of figures) {
+        const {piece,f,r,type}=figure,white=piece.color==="w",animal=this.state.pieceSet==="animal";
+        const phase=f*1.71+r*.63+(white?0:2.3);
+        const animation=this.motion&&this.active?pose(type,animal,this.animationTime,phase):{lift:0,lean:0,turn:0,breath:0,parts:{}};
+        const base=mul(model(figure.x,figure.y+animation.lift,figure.z,(white?0:PI)+animation.turn),mul(turnZ(animation.lean),sizeY(1+animation.breath)));
+        const parts=this.meshes[this.state.pieceSet+type];
+        const pivots={head:[0,type==="k"?.82:.83,-.07],wingLeft:[-.14,.73,0],wingRight:[.14,.73,0],tail:[type==="p"?.20:.27,type==="p"?.34:.45,.17],trunk:[0,.83,-.3],neck:[0,.66,-.035]};
+        for(const [name,mesh] of Object.entries(parts)) {
+          const group=Object.keys(pivots).find(prefix=>name.startsWith(prefix));
+          const transform=group?around(base,pivots[group],animation.parts[group]||[0,0,0]):base;
+          const color=name.endsWith("Trim")||name==="trim"
+            ?white?[.60,.37,.12,1]:[.72,.49,.19,1]
+            :name.endsWith("Eyes")||name==="eyes"
+              ?white?[.035,.055,.05,1]:[.97,.77,.39,1]
+              :white?[.97,.90,.73,1]:[.12,.19,.22,1];
+          this.paint(mesh,transform,color);
+        }
       }
       for(const {el,p} of this.coordinates) {
         const q=vector(this.viewProjection,[...p,1]);el.style.left=(q[0]/q[3]*.5+.5)*width+"px";el.style.top=(-q[1]/q[3]*.5+.5)*height+"px";
