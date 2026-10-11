@@ -28,7 +28,8 @@ const pieceOrder = ["k", "q", "r", "b", "n", "p"];
 
 function savedPieceSet() {
   try {
-    return localStorage.getItem("animalChessPieceSet") === "standard" ? "standard" : "animal";
+    const saved = localStorage.getItem("animalChessPieceSet");
+    return ["animal", "standard", "overhead"].includes(saved) ? saved : "animal";
   } catch {
     return "animal";
   }
@@ -50,22 +51,26 @@ function renderPieceSetUI() {
 
   document.querySelectorAll(".palette-piece").forEach((button) => {
     const [color, type] = button.dataset.piece;
-    button.textContent = pieceGlyph({ color, type });
+    if (pieceSet === "overhead") button.innerHTML = window.overheadPieceSvg({ color, type }, `palette-${color}${type}`);
+    else button.textContent = pieceGlyph({ color, type });
     button.classList.toggle("piece-set-standard", pieceSet === "standard");
     button.classList.toggle("piece-set-animal", pieceSet === "animal");
+    button.classList.toggle("piece-set-overhead", pieceSet === "overhead");
   });
 
-  document.getElementById("legendTitle").textContent = pieceSet === "standard" ? "Classic set" : "Animal set";
+  document.getElementById("legendTitle").textContent = pieceSet === "standard" ? "Classic set" : pieceSet === "overhead" ? "Living 2D set" : "Animal set";
   const legend = document.getElementById("pieceLegend");
   legend.replaceChildren();
   pieceOrder.forEach((type) => {
     const item = document.createElement("li");
     const symbol = document.createElement("span");
     symbol.className = "legend-symbol";
-    symbol.textContent = pieceGlyph({ color: "w", type });
+    if (pieceSet === "overhead") symbol.innerHTML = window.overheadPieceSvg({ color: "w", type }, `legend-${type}`);
+    else symbol.textContent = pieceGlyph({ color: "w", type });
     item.append(symbol, document.createTextNode(pieceNames[type]));
     legend.append(item);
   });
+  updateMotionButton();
 }
 
 const pieceNames = {
@@ -99,6 +104,7 @@ let discardActiveEval = false;
 let bestMoveFrom = null;
 let bestMoveTo = null;
 let boardScene = null;
+let activeOverheadMove = null;
 let boardView = "3d";
 let motionEnabled = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 try {
@@ -108,8 +114,10 @@ try {
 } catch {
   // The view and motion controls also work without browser storage.
 }
+if (pieceSet === "overhead") boardView = "2d";
 
 function setBoardView(view) {
+  clearOverheadMove();
   boardView = view === "3d" && boardScene ? "3d" : "2d";
   document.getElementById("board3d").classList.toggle("hidden", boardView !== "3d");
   boardEl.classList.toggle("hidden", boardView !== "2d");
@@ -120,9 +128,10 @@ function setBoardView(view) {
     button.setAttribute("aria-pressed", String(active));
   });
   document.getElementById("boardHint").textContent = boardView === "3d"
-    ? "Click to move · Drag to rotate · Arrow keys + Enter to play"
+    ? pieceSet === "overhead" ? "Living 2D figures appear as animals in 3D. Drag to rotate." : "Click to move · Drag to rotate · Arrow keys + Enter to play"
     : "Select a piece to see its legal moves.";
   boardScene?.setActive(boardView === "3d");
+  updateMotionButton();
   renderBoard();
 }
 
@@ -130,6 +139,8 @@ function updateMotionButton() {
   const button = document.getElementById("motionToggleBtn");
   button.textContent = motionEnabled ? "Pause motion" : "Play motion";
   button.setAttribute("aria-pressed", String(motionEnabled));
+  button.classList.toggle("hidden", boardView !== "3d" && pieceSet !== "overhead");
+  boardEl.dataset.motion = motionEnabled ? "on" : "off";
 }
 
 function initBoardScene() {
@@ -685,6 +696,7 @@ function makeMove(from, to) {
   clearSelection();
   renderBoard();
   updateStatus();
+  if (boardView === "2d" && pieceSet === "overhead" && motionEnabled) animateOverheadMove(move);
   return true;
 }
 
@@ -752,8 +764,12 @@ function renderBoard() {
     if (piece) {
       const pieceEl = document.createElement("div");
       pieceEl.className = `piece ${piece.color === "w" ? "white" : "black"}`;
-      pieceEl.textContent = pieceGlyph(piece);
+      if (pieceSet === "overhead") {
+        pieceEl.innerHTML = window.overheadPieceSvg(piece, `board-${square}`);
+        pieceEl.dataset.facing = (piece.color === "w") !== isFlipped ? "up" : "down";
+      } else pieceEl.textContent = pieceGlyph(piece);
       pieceEl.title = `${piece.color === "w" ? "White" : "Black"} ${pieceNames[piece.type]}`;
+      if (activeOverheadMove?.squares.includes(square)) pieceEl.style.visibility = "hidden";
       squareEl.append(pieceEl);
     }
 
@@ -761,9 +777,56 @@ function renderBoard() {
     boardEl.append(squareEl);
   });
   if (boardScene) boardScene.update({
-    board: game.board, pieceSet, flipped: isFlipped, selected: selectedSquare,
+    board: game.board, pieceSet: pieceSet === "overhead" ? "animal" : pieceSet, flipped: isFlipped, selected: selectedSquare,
     targets: legalTargets, bestFrom: bestMoveFrom, bestTo: bestMoveTo,
   });
+}
+
+function animateOverheadMove(move) {
+  clearOverheadMove();
+  const frame = boardEl.parentElement;
+  const frameRect = frame.getBoundingClientRect();
+  const steps = [{ from: move.from, to: move.to }];
+  if (move.isCastle && move.rookFrom && move.rookTo) steps.push({ from: move.rookFrom, to: move.rookTo });
+  const active = { squares: [], ghosts: [] };
+  activeOverheadMove = active;
+  const animations = [];
+  for (const step of steps) {
+    const from = boardEl.querySelector(`[data-square="${step.from}"]`);
+    const destination = boardEl.querySelector(`[data-square="${step.to}"] .piece`);
+    if (!from || !destination) continue;
+    const start = from.getBoundingClientRect();
+    const end = destination.getBoundingClientRect();
+    const ghost = destination.cloneNode(true);
+    ghost.classList.add("moving-copy");
+    Object.assign(ghost.style, {
+      position: "absolute", left: `${end.left - frameRect.left}px`, top: `${end.top - frameRect.top}px`,
+      width: `${end.width}px`, height: `${end.height}px`, zIndex: "5",
+    });
+    destination.style.visibility = "hidden";
+    frame.append(ghost);
+    active.squares.push(step.to);
+    active.ghosts.push(ghost);
+    const dx = start.left + start.width / 2 - end.left - end.width / 2;
+    const dy = start.top + start.height / 2 - end.top - end.height / 2;
+    animations.push(ghost.animate([
+      { transform: `translate(${dx}px, ${dy}px) scale(.94)` },
+      { transform: "translate(0, -12px) scale(1.07)", offset: .55 },
+      { transform: "translate(0, 0) scale(1)" },
+    ], { duration: 510, easing: "cubic-bezier(.24,.68,.24,1)" }).finished);
+  }
+  if (!animations.length) clearOverheadMove();
+  else Promise.all(animations).then(() => { if (activeOverheadMove === active) clearOverheadMove(); }).catch(() => {});
+}
+
+function clearOverheadMove() {
+  if (!activeOverheadMove) return;
+  activeOverheadMove.ghosts.forEach((ghost) => ghost.remove());
+  activeOverheadMove.squares.forEach((square) => {
+    const destination = boardEl.querySelector(`[data-square="${square}"] .piece`);
+    if (destination) destination.style.visibility = "";
+  });
+  activeOverheadMove = null;
 }
 
 function buildMoveList() {
@@ -839,6 +902,7 @@ function getEditorCastlingString() {
 }
 
 function enterEditorMode() {
+  clearOverheadMove();
   boardScene?.clearMove();
   isEditorMode = true;
   selectedEditorPiece = null;
@@ -855,6 +919,7 @@ function enterEditorMode() {
 }
 
 function exitEditorMode(commit) {
+  clearOverheadMove();
   boardScene?.clearMove();
   if (commit && editorPreEditState) {
     undoStack.push(editorPreEditState);
@@ -906,6 +971,7 @@ function loadFen() {
 
   undoStack.push(snapshot());
   redoStack.length = 0;
+  clearOverheadMove();
   boardScene?.clearMove();
   restore(next);
   clearSelection();
@@ -1056,6 +1122,7 @@ function requestStockfishEval() {
 }
 
 document.getElementById("newGameBtn").addEventListener("click", () => {
+  clearOverheadMove();
   boardScene?.clearMove();
   undoStack.push(snapshot());
   redoStack.length = 0;
@@ -1068,6 +1135,7 @@ document.getElementById("newGameBtn").addEventListener("click", () => {
 document.getElementById("undoBtn").addEventListener("click", () => {
   const previous = undoStack.pop();
   if (previous) {
+    clearOverheadMove();
     boardScene?.clearMove();
     redoStack.push(snapshot());
     restore(previous);
@@ -1080,6 +1148,7 @@ document.getElementById("undoBtn").addEventListener("click", () => {
 document.getElementById("redoBtn").addEventListener("click", () => {
   const next = redoStack.pop();
   if (next) {
+    clearOverheadMove();
     boardScene?.clearMove();
     undoStack.push(snapshot());
     restore(next);
@@ -1090,6 +1159,7 @@ document.getElementById("redoBtn").addEventListener("click", () => {
 });
 
 document.getElementById("flipBtn").addEventListener("click", () => {
+  clearOverheadMove();
   isFlipped = !isFlipped;
   renderBoard();
 });
@@ -1116,7 +1186,11 @@ document.getElementById("motionToggleBtn").addEventListener("click", () => {
 
 document.querySelectorAll(".piece-set-option").forEach((button) => {
   button.addEventListener("click", () => {
-    if (pieceSet === button.dataset.pieceSet) return;
+    if (pieceSet === button.dataset.pieceSet) {
+      if (pieceSet === "overhead" && boardView !== "2d") setBoardView("2d");
+      return;
+    }
+    clearOverheadMove();
     pieceSet = button.dataset.pieceSet;
     try {
       localStorage.setItem("animalChessPieceSet", pieceSet);
@@ -1124,7 +1198,7 @@ document.querySelectorAll(".piece-set-option").forEach((button) => {
       // The switch still works when browser storage is unavailable.
     }
     renderPieceSetUI();
-    renderBoard();
+    setBoardView(pieceSet === "overhead" ? "2d" : boardView);
   });
 });
 
