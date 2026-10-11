@@ -217,6 +217,8 @@ h1 {
 .camera-controls button { padding: 6px 9px; border: 1px solid var(--line); border-radius: 7px; background: #18262f; color: var(--text); font-size: .76rem; }
 .camera-controls button:hover { border-color: var(--accent); }
 .camera-controls input { width: 76px; accent-color: var(--accent); }
+.camera-controls #motionToggleBtn { min-width: 88px; color: var(--accent); border-color: #6d6148; }
+.camera-controls #motionToggleBtn[aria-pressed="false"] { color: var(--muted); border-color: var(--line); }
 .segmented-control button:disabled { opacity: .4; cursor: not-allowed; }
 .board-3d { position: relative; width: 100%; aspect-ratio: 1 / 1; overflow: hidden; border-radius: 7px; background: radial-gradient(ellipse at 50% 55%, #3a4543 0%, #1b292f 56%, #111e26 100%); }
 .board-3d::before { content: ""; position: absolute; inset: 32% 6% 10%; border-radius: 50%; background: #0008; filter: blur(28px); pointer-events: none; }

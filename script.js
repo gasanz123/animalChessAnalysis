@@ -100,10 +100,13 @@ let bestMoveFrom = null;
 let bestMoveTo = null;
 let boardScene = null;
 let boardView = "3d";
+let motionEnabled = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 try {
   if (localStorage.getItem("animalChessBoardView") === "2d") boardView = "2d";
+  const savedMotion = localStorage.getItem("animalChessMotion");
+  if (savedMotion !== null) motionEnabled = savedMotion === "on";
 } catch {
-  // The default 3D view also works without browser storage.
+  // The view and motion controls also work without browser storage.
 }
 
 function setBoardView(view) {
@@ -117,9 +120,16 @@ function setBoardView(view) {
     button.setAttribute("aria-pressed", String(active));
   });
   document.getElementById("boardHint").textContent = boardView === "3d"
-    ? "Click a piece to move · Drag to rotate · Arrow keys + Enter to play"
+    ? "Click to move · Drag to rotate · Arrow keys + Enter to play"
     : "Select a piece to see its legal moves.";
+  boardScene?.setActive(boardView === "3d");
   renderBoard();
+}
+
+function updateMotionButton() {
+  const button = document.getElementById("motionToggleBtn");
+  button.textContent = motionEnabled ? "Pause motion" : "Play motion";
+  button.setAttribute("aria-pressed", String(motionEnabled));
 }
 
 function initBoardScene() {
@@ -141,6 +151,8 @@ function initBoardScene() {
         ? `${square}, ${piece.color === "w" ? "White" : "Black"} ${pieceNames[piece.type]}`
         : `${square}, empty`;
     };
+    boardScene.setMotion(motionEnabled);
+    updateMotionButton();
     setBoardView(boardView);
   } catch {
     fallback();
@@ -665,9 +677,11 @@ function makeMove(from, to) {
     return false;
   }
 
+  const movingPiece = getPiece(from);
   undoStack.push(snapshot());
   redoStack.length = 0;
   applyMove({ ...move, notation: moveNotation(move) });
+  if (boardView === "3d" && motionEnabled) boardScene?.animateMove(move, movingPiece);
   clearSelection();
   renderBoard();
   updateStatus();
@@ -825,6 +839,7 @@ function getEditorCastlingString() {
 }
 
 function enterEditorMode() {
+  boardScene?.clearMove();
   isEditorMode = true;
   selectedEditorPiece = null;
   editorPreEditState = snapshot();
@@ -840,6 +855,7 @@ function enterEditorMode() {
 }
 
 function exitEditorMode(commit) {
+  boardScene?.clearMove();
   if (commit && editorPreEditState) {
     undoStack.push(editorPreEditState);
     redoStack.length = 0;
@@ -890,6 +906,7 @@ function loadFen() {
 
   undoStack.push(snapshot());
   redoStack.length = 0;
+  boardScene?.clearMove();
   restore(next);
   clearSelection();
   renderBoard();
@@ -1039,6 +1056,7 @@ function requestStockfishEval() {
 }
 
 document.getElementById("newGameBtn").addEventListener("click", () => {
+  boardScene?.clearMove();
   undoStack.push(snapshot());
   redoStack.length = 0;
   game = createGame();
@@ -1050,6 +1068,7 @@ document.getElementById("newGameBtn").addEventListener("click", () => {
 document.getElementById("undoBtn").addEventListener("click", () => {
   const previous = undoStack.pop();
   if (previous) {
+    boardScene?.clearMove();
     redoStack.push(snapshot());
     restore(previous);
     clearSelection();
@@ -1061,6 +1080,7 @@ document.getElementById("undoBtn").addEventListener("click", () => {
 document.getElementById("redoBtn").addEventListener("click", () => {
   const next = redoStack.pop();
   if (next) {
+    boardScene?.clearMove();
     undoStack.push(snapshot());
     restore(next);
     clearSelection();
@@ -1086,6 +1106,12 @@ document.getElementById("cameraTilt").addEventListener("input", (event) => board
 document.getElementById("resetCameraBtn").addEventListener("click", () => {
   boardScene?.reset();
   document.getElementById("cameraTilt").value = 53;
+});
+document.getElementById("motionToggleBtn").addEventListener("click", () => {
+  motionEnabled = !motionEnabled;
+  boardScene?.setMotion(motionEnabled);
+  updateMotionButton();
+  try { localStorage.setItem("animalChessMotion", motionEnabled ? "on" : "off"); } catch { /* Optional preference. */ }
 });
 
 document.querySelectorAll(".piece-set-option").forEach((button) => {
