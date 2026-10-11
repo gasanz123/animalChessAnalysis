@@ -2,6 +2,8 @@
 
 A lightweight online analysis board inspired by the Lichess analysis layout, using 3D-styled animal pieces.
 
+**Play online:** [Animal Chess Analysis](https://gasanz123.github.io/animalChessAnalysis/)
+
 ## Features
 
 - Click-to-move chess analysis board.

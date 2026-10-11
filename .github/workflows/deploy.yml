@@ -33,7 +33,7 @@ jobs:
       - name: Collect static files
         run: |
           mkdir _site
-          cp index.html styles.css script.js stockfish.js stockfish.wasm _site/
+          cp index.html styles.css script.js chess3d.js overhead.js stockfish.js stockfish.wasm _site/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
