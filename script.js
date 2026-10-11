@@ -43,7 +43,10 @@ let editorPreEditState = null;
 
 let stockfishWorker = null;
 let stockfishReady = false;
-let evalRequestId = 0;
+let activeEvalFen = null;
+let pendingEvalFen = null;
+let evalSearchActive = false;
+let discardActiveEval = false;
 let bestMoveFrom = null;
 let bestMoveTo = null;
 
@@ -800,11 +803,34 @@ function initStockfish() {
   evalStateEl.textContent = "Starting Stockfish…";
 
   function applyBestMove(uciMove) {
-    bestMoveFrom = uciMove.slice(0, 2);
-    bestMoveTo = uciMove.slice(2, 4);
+    const nextFrom = uciMove.slice(0, 2);
+    const nextTo = uciMove.slice(2, 4);
     const promotion = uciMove.length === 5 ? uciMove[4].toUpperCase() : "";
+    if (bestMoveFrom === nextFrom && bestMoveTo === nextTo) return;
+
+    bestMoveFrom = nextFrom;
+    bestMoveTo = nextTo;
     evalBestMoveEl.textContent = `${bestMoveFrom}–${bestMoveTo}${promotion}`;
     renderBoard();
+  }
+
+  function startAnalysis(fen) {
+    if (!fen || !stockfishReady || !stockfishWorker) return;
+
+    activeEvalFen = fen;
+    pendingEvalFen = null;
+    evalSearchActive = true;
+    discardActiveEval = false;
+    bestMoveFrom = null;
+    bestMoveTo = null;
+    renderBoard();
+    evalValueEl.textContent = "…";
+    evalDepthEl.textContent = "…";
+    evalBestMoveEl.textContent = "…";
+    evalStateEl.textContent = "Analyzing";
+
+    stockfishWorker.postMessage(`position fen ${fen}`);
+    stockfishWorker.postMessage("go infinite");
   }
 
   try {
@@ -821,33 +847,49 @@ function initStockfish() {
       if (line === "readyok") {
         stockfishReady = true;
         evalStateEl.textContent = "Stockfish ready";
-        requestStockfishEval();
+        startAnalysis(pendingEvalFen || generateFen());
         return;
       }
 
       if (line.startsWith("bestmove")) {
-        const move = line.split(" ")[1];
-        if (move && move !== "(none)") {
-          applyBestMove(move);
+        if (!evalSearchActive) return;
+
+        evalSearchActive = false;
+        activeEvalFen = null;
+        if (pendingEvalFen) {
+          startAnalysis(pendingEvalFen);
+        } else {
+          discardActiveEval = false;
+          evalStateEl.textContent = "Ready";
         }
-        evalStateEl.textContent = "Ready";
         return;
       }
 
-      if (!line.includes("score")) return;
+      if (!line.includes("score") || !evalSearchActive || discardActiveEval) return;
 
       const depthMatch = line.match(/\bdepth\s+(\d+)/);
       const cpMatch = line.match(/\bscore\s+cp\s+(-?\d+)/);
       const mateMatch = line.match(/\bscore\s+mate\s+(-?\d+)/);
+      const boundMatch = line.match(/\b(lowerbound|upperbound)\b/);
+      const analysisTurn = activeEvalFen?.split(/\s+/)[1] || "w";
+      const whitePerspective = analysisTurn === "w" ? 1 : -1;
 
       if (depthMatch) {
         evalDepthEl.textContent = depthMatch[1];
       }
 
       if (cpMatch) {
-        evalValueEl.textContent = `${(Number(cpMatch[1]) / 100).toFixed(2)}`;
+        const score = (Number(cpMatch[1]) / 100) * whitePerspective;
+        let bound = boundMatch?.[1] || "";
+        if (whitePerspective < 0) {
+          bound = bound === "lowerbound" ? "upperbound" : bound === "upperbound" ? "lowerbound" : "";
+        }
+        const prefix = bound === "lowerbound" ? "≥" : bound === "upperbound" ? "≤" : "";
+        const signedScore = score > 0 ? `+${score.toFixed(2)}` : score.toFixed(2);
+        evalValueEl.textContent = `${prefix}${signedScore}`;
       } else if (mateMatch) {
-        evalValueEl.textContent = `#${mateMatch[1]}`;
+        const mate = Number(mateMatch[1]) * whitePerspective;
+        evalValueEl.textContent = `#${mate > 0 ? "+" : ""}${mate}`;
       }
 
       const pvMatch = line.match(/\bpv\s+([a-h][1-8][a-h][1-8][qrbn]?)/);
@@ -859,6 +901,9 @@ function initStockfish() {
     };
 
     stockfishWorker.onerror = () => {
+      evalSearchActive = false;
+      activeEvalFen = null;
+      pendingEvalFen = null;
       evalStateEl.textContent = "Stockfish unavailable (worker blocked).";
     };
 
@@ -869,21 +914,26 @@ function initStockfish() {
 }
 
 function requestStockfishEval() {
-  if (!stockfishReady || !stockfishWorker) {
+  const fen = generateFen();
+  pendingEvalFen = fen;
+  if (!stockfishReady || !stockfishWorker) return;
+
+  if (evalSearchActive) {
+    bestMoveFrom = null;
+    bestMoveTo = null;
+    renderBoard();
+    evalValueEl.textContent = "…";
+    evalDepthEl.textContent = "…";
+    evalBestMoveEl.textContent = "…";
+    evalStateEl.textContent = "Updating analysis…";
+    if (!discardActiveEval) {
+      discardActiveEval = true;
+      stockfishWorker.postMessage("stop");
+    }
     return;
   }
 
-  bestMoveFrom = null;
-  bestMoveTo = null;
-  if (evalBestMoveEl) evalBestMoveEl.textContent = "…";
-
-  evalRequestId += 1;
-  const fen = generateFen();
-  evalStateEl.textContent = "Analyzing";
-  evalDepthEl.textContent = "…";
-  stockfishWorker.postMessage("stop");
-  stockfishWorker.postMessage(`position fen ${fen}`);
-  stockfishWorker.postMessage("go depth 12 movetime 1500");
+  startAnalysis(fen);
 }
 
 document.getElementById("newGameBtn").addEventListener("click", () => {
