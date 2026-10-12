@@ -50,3 +50,11 @@ If Codex cannot create a PR, verify repository integration first:
 - The Codex environment has credentials/token permission to create PRs.
 
 Without remote + auth wiring, Codex can still commit locally, but PR creation may fail.
+
+## Smurf Village theme
+
+Select **Smurf Village** in the piece selector, then choose **2D** or **3D**. The selection is saved locally and also appears in the position editor and piece legend.
+
+The set uses Papa Smurf (king), Smurfette (queen), Brainy (bishop), Hefty riding a woodland snail (knight), mushroom houses (rooks), and village Smurfs (pawns). Cream bases identify White and navy bases identify Black; 2D pieces also carry a chess-role badge. Vector artwork and reusable procedural WebGL geometry are bundled locally in `smurfs.js` and `chess3d.js`. No external images or models are downloaded.
+
+Pieces breathe, nod, and wave. Moves hop between squares, castling moves both pieces together, and captures and promotion produce magical sparkles. Check is highlighted. **Pause motion** disables animations; the system reduced-motion setting also disables motion. Changing themes or views, loading a position, flipping, editing, resetting, and undo/redo cancel active movement. If WebGL is unavailable, the theme works in 2D.
