@@ -97,7 +97,7 @@
       vertex(target,pos,normal);
     }
   }
-  function figure(type, animal) {
+  function figure(type, animal, smurf=false) {
     const m={body:[],trim:[],eyes:[]};
     const part=(name) => m[name] || (m[name]=[]);
     const ball=(p,s,name="body",a=[0,0,0]) => shape(part(name),BALL,p,s,a);
@@ -107,7 +107,48 @@
     const eyes=(y,z,width=.14) => [-1,1].forEach(s=>ball([s*width,y,z],[.035,.04,.035],"eyes"));
     turned([[0,0],[.32,0],[.39,.035],[.39,.09],[.35,.15],[.3,.19],[.28,.23],[0,.23]]);
     turned([[.32,.125],[.34,.135],[.33,.16],[.31,.17]],"trim");
-    if(!animal && type!=="n") {
+    if(smurf) {
+      // Reuse uploaded meshes for every instance; named materials keep both teams blue.
+      m.base = m.body; m.body = [];
+      m.baseTrim = m.trim; m.trim = [];
+      if(type === "r") {
+        turned([[0,.23],[.24,.23],[.24,.78],[0,.78]],"clothes");
+        turned([[0,.75],[.43,.75],[.4,.87],[.30,1.05],[.13,1.15],[0,1.17]],"red");
+        for(const [x,y,z] of [[-.2,.96,-.2],[.19,1.0,-.18],[0,1.13,0],[.28,.87,.12]]) ball([x,y,z],[.065,.035,.06],"clothes");
+        cube([0,.43,-.245],[.16,.37,.04],"wood");
+        ball([-.17,.62,-.2],[.065,.065,.025],"skin");
+      } else {
+        const mount=type==="n", lower=mount?.14:0, hat=type==="k"?"red":"clothes";
+        if(mount) {
+          ball([0,.36,0],[.30,.13,.34],"mount");
+          ball([.12,.54,.08],[.22,.23,.21],"wood");
+          for(const x of [-.18,-.06]) {ball([x,.52,-.22],[.025,.16,.025],"mount");ball([x,.68,-.23],[.04,.04,.04],"ink");}
+        }
+        for(const x of [-.13,.13]) {
+          ball([x,.3+lower,-.07],[.11,.065,.17],hat);
+          ball([x,.42+lower,0],[.08,.17,.095],hat);
+        }
+        ball([0,.68+lower,0],[.22,.25,.18],type==="q"?"clothes":"skin");
+        for(const x of [-.25,.25]) ball([x,.72+lower,0],[.07,.20,.07],"armSkin",[0,0,x<0?-.5:.5]);
+        if(type==="q") ball([0,1.02+lower,.02],[.29,.3,.22],"headHair");
+        ball([0,1.05+lower,-.025],[.245,.23,.22],"headSkin");
+        for(const x of [-.26,.26]) ball([x,1.07+lower,0],[.065,.08,.055],"headSkin");
+        ball([0,1.025+lower,-.27],[.10,.065,.09],"headSkin");
+        for(const x of [-.09,.09]) {
+          ball([x,1.11+lower,-.21],[.065,.075,.035],"headClothes");
+          ball([x,1.10+lower,-.247],[.025,.035,.012],"headInk");
+        }
+        ball([0,1.27+lower,0],[.255,.15,.23],"head"+hat[0].toUpperCase()+hat.slice(1));
+        ball([.11,1.43+lower,0],[.20,.12,.17],"head"+hat[0].toUpperCase()+hat.slice(1),[0,0,-.35]);
+        if(type==="k") ball([0,.92+lower,-.2],[.20,.17,.07],"headClothes");
+        if(type==="q") for(const x of [-.21,.21]) ball([x,1.08+lower,-.08],[.075,.22,.14],"headHair");
+        if(type==="b") {
+          for(const x of [-.09,.09]) shape(part("headInk"),lathe([[.08,0],[.085,.006],[.08,.015],[.065,.015],[.065,0]],18),[x,1.11+lower,-.26],[1,1,1],[PI/2,0,0]);
+          cube([.24,.64+lower,-.13],[.17,.23,.08],"wood",[0,0,-.25]);
+        }
+        if(type==="n") ball([.27,.66+lower,-.06],[.035,.035,.025],"red");
+      }
+    } else if(!animal && type!=="n") {
       const profiles={
         p:[[0,.2],[.25,.2],[.21,.3],[.13,.55],[.17,.63],[.2,.67],[.19,.72],[0,.72]],
         r:[[0,.2],[.27,.2],[.22,.33],[.21,.83],[.29,.88],[.3,.95],[.27,1.08],[0,1.08]],
@@ -201,7 +242,7 @@
     constructor(canvas, labels, onSquare, onError) {
       this.canvas=canvas; this.labels=labels; this.onSquare=onSquare; this.onError=onError;
       this.azimuth=-.25; this.elevation=53*PI/180; this.focusSquare=null; this.drag=null;
-      this.motion=true; this.active=false; this.frame=null; this.lastFrame=0; this.animationTime=0; this.transitions=[];
+      this.motion=true; this.active=false; this.frame=null; this.lastFrame=0; this.animationTime=0; this.transitions=[]; this.effects=[]; this.selectionStart=0;
       const gl=canvas.getContext("webgl",{antialias:true,alpha:true});
       if(!gl) throw new Error("WebGL is unavailable");
       this.gl=gl;
@@ -224,14 +265,15 @@
       this.base=geometry(BOX,[0,-.30,0],[8.8,.52,8.8]);
       this.rim=geometry(BOX,[0,-.07,0],[8.65,.12,8.65]);
       this.shadow=this.upload(lathe([[0,.007],[.32,.007],[.42,.007]],32));
+      this.spark=this.upload(sphere(6,8));
       this.marker=this.upload(lathe([[0,.012],[.13,.012]],24));
       const outline=[]; for(const [p,s] of [
         [[0,.012,-.475],[.97,.025,.05]],[[0,.012,.475],[.97,.025,.05]],
         [[-.475,.012,0],[.05,.025,.97]],[[.475,.012,0],[.05,.025,.97]]
       ]) shape(outline,BOX,p,s);
       this.outline=this.upload(outline);
-      for(const set of ["animal","standard"]) for(const type of ["k","q","r","b","n","p"]) {
-        const parts=figure(type,set==="animal");
+      for(const set of (window.smurfTheme ? ["animal","standard","smurfs"] : ["animal","standard"])) for(const type of ["k","q","r","b","n","p"]) {
+        const parts=figure(type,set==="animal",set==="smurfs");
         this.meshes[set+type]=Object.fromEntries(Object.entries(parts).map(([name,data])=>[name,this.upload(data)]));
       }
       this.coordinates=[];
@@ -260,7 +302,7 @@
       gl.uniformMatrix4fv(this.loc.model,false,matrix); gl.uniform4fv(this.loc.color,color);
       gl.uniform1f(this.loc.unlit,unlit); gl.drawArrays(gl.TRIANGLES,0,mesh.count);
     }
-    update(state) {this.state=state;this.draw();}
+    update(state) {if(state.selected!==this.state?.selected)this.selectionStart=performance.now();this.state=state;this.draw();}
     stopLoop() {if(this.frame!==null){cancelAnimationFrame(this.frame);this.frame=null;}}
     startLoop() {
       if(this.frame!==null||!this.active||!this.motion||document.hidden||this.lost)return;
@@ -281,10 +323,15 @@
       else this.startLoop();
       this.draw();
     }
-    clearMove() {this.transitions=[];this.draw();}
-    animateMove(move,piece) {
+    clearMove() {this.transitions=[];this.effects=[];this.selectionStart=0;this.draw();}
+    animateMove(move,piece,capturedPiece,captureSquare) {
       if(!this.active||!this.motion||!piece)return;
       const start=performance.now();
+      this.effects=[];
+      if(this.state?.pieceSet==="smurfs") {
+        if(capturedPiece)this.effects.push({square:captureSquare,start});
+        if(move.promotion)this.effects.push({square:move.to,start:start+350});
+      }
       this.transitions=[{from:move.from,to:move.to,piece:{...piece},start}];
       if(move.isCastle&&move.rookFrom&&move.rookTo) this.transitions.push({from:move.rookFrom,to:move.rookTo,piece:{type:"r",color:piece.color},start});
       this.startLoop();
@@ -308,18 +355,29 @@
       }
       gl.viewport(0,0,this.canvas.width,this.canvas.height);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
       this.camera();gl.useProgram(this.program);gl.uniformMatrix4fv(this.loc.viewProjection,false,this.viewProjection);gl.uniform3fv(this.loc.eye,this.eye);
-      this.paint(this.base,model(),[.17,.105,.065,1]);
-      this.paint(this.rim,model(),[.29,.205,.12,1]);
-      for(let r=0;r<8;r++)for(let f=0;f<8;f++) this.paint(this.tile,model(f-3.5,0,r-3.5),(r+f)%2?[.31,.45,.39,1]:[.88,.81,.65,1]);
+      const smurfs=this.state.pieceSet==="smurfs",theme=window.smurfTheme;
+      this.paint(this.base,model(),smurfs?[.20,.32,.18,1]:[.17,.105,.065,1]);
+      this.paint(this.rim,model(),smurfs?[.46,.56,.29,1]:[.29,.205,.12,1]);
+      for(let r=0;r<8;r++)for(let f=0;f<8;f++) this.paint(this.tile,model(f-3.5,0,r-3.5),smurfs?((r+f)%2?theme.dark:theme.light):((r+f)%2?[.31,.45,.39,1]:[.88,.81,.65,1]));
+      if(smurfs) {
+        for(const [x,z] of [[-4.7,-4.7],[4.7,-4.7],[-4.7,4.7],[4.7,4.7]]) {
+          const matrix=mul(model(x,-.12,z),new Float32Array([.42,0,0,0,0,.42,0,0,0,0,.42,0,0,0,0,1]));
+          for(const [name,mesh] of Object.entries(this.meshes.smurfsr)) {
+            this.paint(mesh,matrix,theme.colors[name.toLowerCase()] || theme.blackBase);
+          }
+        }
+      }
       const point=s=>[s.charCodeAt(0)-97-3.5,0,8-Number(s[1])-3.5];
       for(const [square,color] of [[this.state.bestFrom,[.8,.61,.22,1]],[this.state.bestTo,[.5,.8,.57,1]],[this.state.selected,[1,.76,.25,1]],[this.focusSquare,[.54,.78,1,1]]]) {
         if(square) this.paint(this.outline,model(...point(square)),color,1);
       }
+      if(this.state.check) this.paint(this.outline,model(...point(this.state.check)),[1,.25,.28,this.motion?.72+.28*Math.sin(this.animationTime*3):1],1);
       for(const square of this.state.targets||[]) this.paint(this.marker,model(...point(square)),[.13,.28,.22,.8],1);
       const now=performance.now(), movement=new Map();
-      this.transitions=this.transitions.filter(transition=>now-transition.start<520);
+      const duration=smurfs?380:520;
+      this.transitions=this.transitions.filter(transition=>now-transition.start<duration);
       for(const transition of this.transitions) {
-        const progress=Math.max(0,Math.min(1,(now-transition.start)/520)), eased=progress*progress*(3-2*progress);
+        const progress=Math.max(0,Math.min(1,(now-transition.start)/duration)), eased=progress*progress*(3-2*progress);
         const from=point(transition.from),to=point(transition.to);
         movement.set(transition.to,{
           x:from[0]+(to[0]-from[0])*eased,
@@ -341,18 +399,39 @@
         const {piece,f,r,type}=figure,white=piece.color==="w",animal=this.state.pieceSet==="animal";
         const phase=f*1.71+r*.63+(white?0:2.3);
         const animation=this.motion&&this.active?pose(type,animal,this.animationTime,phase):{lift:0,lean:0,turn:0,breath:0,parts:{}};
-        const base=mul(model(figure.x,figure.y+animation.lift,figure.z,(white?0:PI)+animation.turn),mul(turnZ(animation.lean),sizeY(1+animation.breath)));
+        const base=mul(model(figure.x,figure.y+animation.lift+(smurfs&&this.motion&&this.state.selected===String.fromCharCode(97+f)+(8-r)? .10*Math.max(0,Math.sin(Math.min(1,(now-this.selectionStart)/300)*PI)):0),figure.z,(white?0:PI)+animation.turn),mul(turnZ(animation.lean),sizeY(1+animation.breath)));
+        if(smurfs) {
+          animation.parts.head=[.035*Math.sin(this.animationTime+phase),.07*Math.sin(this.animationTime*.7+phase),0];
+          animation.parts.arm=[0,0,.09*Math.sin(this.animationTime*1.8+phase)];
+          if(!this.motion) animation.parts={};
+        }
         const parts=this.meshes[this.state.pieceSet+type];
-        const pivots={head:[0,type==="k"?.82:.83,-.07],wingLeft:[-.14,.73,0],wingRight:[.14,.73,0],tail:[type==="p"?.20:.27,type==="p"?.34:.45,.17],trunk:[0,.83,-.3],neck:[0,.66,-.035]};
+        const pivots={arm:[0,.78,0],head:[0,type==="k"?.82:.83,-.07],wingLeft:[-.14,.73,0],wingRight:[.14,.73,0],tail:[type==="p"?.20:.27,type==="p"?.34:.45,.17],trunk:[0,.83,-.3],neck:[0,.66,-.035]};
         for(const [name,mesh] of Object.entries(parts)) {
           const group=Object.keys(pivots).find(prefix=>name.startsWith(prefix));
           const transform=group?around(base,pivots[group],animation.parts[group]||[0,0,0]):base;
-          const color=name.endsWith("Trim")||name==="trim"
+          let color=name.endsWith("Trim")||name==="trim"
             ?white?[.60,.37,.12,1]:[.72,.49,.19,1]
             :name.endsWith("Eyes")||name==="eyes"
               ?white?[.035,.055,.05,1]:[.97,.77,.39,1]
               :white?[.97,.90,.73,1]:[.12,.19,.22,1];
+          if(smurfs) {
+            const material=name.replace(/^(head|arm)/, "").toLowerCase();
+            color=material==="base"? (white?theme.whiteBase:theme.blackBase)
+              :material==="basetrim"? (white?[.68,.56,.30,1]:[.55,.73,.96,1])
+              :theme.colors[material] || theme.colors.skin;
+          }
           this.paint(mesh,transform,color);
+        }
+      }
+      this.effects=this.effects.filter(effect=>now-effect.start<550);
+      for(const effect of this.effects) {
+        const progress=(now-effect.start)/550;
+        if(progress<0)continue;
+        const at=point(effect.square);
+        for(let i=0;i<8;i++) {
+          const a=i*PI/4, radius=.12+progress*.55, matrix=mul(model(at[0]+Math.cos(a)*radius,.35+progress*.65,at[2]+Math.sin(a)*radius),new Float32Array([.05,0,0,0,0,.05,0,0,0,0,.05,0,0,0,0,1]));
+          this.paint(this.spark,matrix,[1,.84,.35,1-progress],1);
         }
       }
       for(const {el,p} of this.coordinates) {

@@ -29,13 +29,17 @@ const pieceOrder = ["k", "q", "r", "b", "n", "p"];
 function savedPieceSet() {
   try {
     const saved = localStorage.getItem("animalChessPieceSet");
-    return ["animal", "standard", "overhead"].includes(saved) ? saved : "animal";
+    return ["animal", "standard", "overhead", "smurfs"].includes(saved) ? saved : "animal";
   } catch {
     return "animal";
   }
 }
 
 let pieceSet = savedPieceSet();
+if (!window.smurfTheme || !window.smurfPieceSvg) {
+  if (pieceSet === "smurfs") pieceSet = "animal";
+  document.querySelector('[data-piece-set="smurfs"]').disabled = true;
+}
 
 function pieceGlyph(piece) {
   return pieceSet === "standard" ? classicMap[piece.color][piece.type] : animalMap[piece.type];
@@ -43,6 +47,7 @@ function pieceGlyph(piece) {
 
 function renderPieceSetUI() {
   boardEl.dataset.pieceSet = pieceSet;
+  document.querySelector(".board-frame").dataset.pieceSet = pieceSet;
   document.querySelectorAll(".piece-set-option").forEach((button) => {
     const active = button.dataset.pieceSet === pieceSet;
     button.classList.toggle("active", active);
@@ -51,23 +56,27 @@ function renderPieceSetUI() {
 
   document.querySelectorAll(".palette-piece").forEach((button) => {
     const [color, type] = button.dataset.piece;
-    if (pieceSet === "overhead") button.innerHTML = window.overheadPieceSvg({ color, type }, `palette-${color}${type}`);
+    if (pieceSet === "smurfs") button.innerHTML = window.smurfPieceSvg({ color, type });
+    else if (pieceSet === "overhead") button.innerHTML = window.overheadPieceSvg({ color, type }, `palette-${color}${type}`);
     else button.textContent = pieceGlyph({ color, type });
     button.classList.toggle("piece-set-standard", pieceSet === "standard");
     button.classList.toggle("piece-set-animal", pieceSet === "animal");
     button.classList.toggle("piece-set-overhead", pieceSet === "overhead");
+    button.classList.toggle("piece-set-smurfs", pieceSet === "smurfs");
   });
 
-  document.getElementById("legendTitle").textContent = pieceSet === "standard" ? "Classic set" : pieceSet === "overhead" ? "Living 2D set" : "Animal set";
+  document.getElementById("legendTitle").textContent = pieceSet === "smurfs" ? "Smurf Village" : pieceSet === "standard" ? "Classic set" : pieceSet === "overhead" ? "Living 2D set" : "Animal set";
   const legend = document.getElementById("pieceLegend");
+  legend.dataset.pieceSet = pieceSet;
   legend.replaceChildren();
   pieceOrder.forEach((type) => {
     const item = document.createElement("li");
     const symbol = document.createElement("span");
     symbol.className = "legend-symbol";
-    if (pieceSet === "overhead") symbol.innerHTML = window.overheadPieceSvg({ color: "w", type }, `legend-${type}`);
+    if (pieceSet === "smurfs") symbol.innerHTML = window.smurfPieceSvg({ color: "w", type });
+    else if (pieceSet === "overhead") symbol.innerHTML = window.overheadPieceSvg({ color: "w", type }, `legend-${type}`);
     else symbol.textContent = pieceGlyph({ color: "w", type });
-    item.append(symbol, document.createTextNode(pieceNames[type]));
+    item.append(symbol, document.createTextNode(pieceSet === "smurfs" ? `${pieceNames[type]} · ${window.smurfTheme.names[type]}` : pieceNames[type]));
     legend.append(item);
   });
   updateMotionButton();
@@ -106,11 +115,12 @@ let bestMoveTo = null;
 let boardScene = null;
 let activeOverheadMove = null;
 let boardView = "3d";
-let motionEnabled = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+let motionEnabled = !reducedMotion.matches;
 try {
   if (localStorage.getItem("animalChessBoardView") === "2d") boardView = "2d";
   const savedMotion = localStorage.getItem("animalChessMotion");
-  if (savedMotion !== null) motionEnabled = savedMotion === "on";
+  if (savedMotion !== null) motionEnabled = savedMotion === "on" && !reducedMotion.matches;
 } catch {
   // The view and motion controls also work without browser storage.
 }
@@ -118,6 +128,7 @@ if (pieceSet === "overhead") boardView = "2d";
 
 function setBoardView(view) {
   clearOverheadMove();
+  boardScene?.clearMove();
   boardView = view === "3d" && boardScene ? "3d" : "2d";
   document.getElementById("board3d").classList.toggle("hidden", boardView !== "3d");
   boardEl.classList.toggle("hidden", boardView !== "2d");
@@ -139,7 +150,7 @@ function updateMotionButton() {
   const button = document.getElementById("motionToggleBtn");
   button.textContent = motionEnabled ? "Pause motion" : "Play motion";
   button.setAttribute("aria-pressed", String(motionEnabled));
-  button.classList.toggle("hidden", boardView !== "3d" && pieceSet !== "overhead");
+  button.classList.toggle("hidden", boardView !== "3d" && !["overhead", "smurfs"].includes(pieceSet));
   boardEl.dataset.motion = motionEnabled ? "on" : "off";
 }
 
@@ -688,15 +699,17 @@ function makeMove(from, to) {
     return false;
   }
 
-  const movingPiece = getPiece(from);
+  const movingPiece = { ...getPiece(from) };
+  const captureSquare = move.isEnPassant ? `${to[0]}${from[1]}` : to;
+  const capturedPiece = getPiece(captureSquare);
   undoStack.push(snapshot());
   redoStack.length = 0;
   applyMove({ ...move, notation: moveNotation(move) });
-  if (boardView === "3d" && motionEnabled) boardScene?.animateMove(move, movingPiece);
+  if (boardView === "3d" && motionEnabled) boardScene?.animateMove(move, movingPiece, capturedPiece, captureSquare);
   clearSelection();
   renderBoard();
   updateStatus();
-  if (boardView === "2d" && pieceSet === "overhead" && motionEnabled) animateOverheadMove(move);
+  if (boardView === "2d" && ["overhead", "smurfs"].includes(pieceSet) && motionEnabled) animateOverheadMove(move, movingPiece, capturedPiece, captureSquare);
   return true;
 }
 
@@ -721,6 +734,7 @@ function squareColor(fileIndex, rankIndex) {
 function renderBoard() {
   boardEl.innerHTML = "";
 
+  const checkedKing = inCheck(game.turn) ? findKing(game.turn) : null;
   orderedBoard().forEach((square) => {
     const fileIndex = files.indexOf(square[0]);
     const rankIndex = ranks.indexOf(Number(square[1]));
@@ -730,6 +744,7 @@ function renderBoard() {
     squareEl.type = "button";
     squareEl.className = `square ${squareColor(fileIndex, rankIndex)}`;
     squareEl.dataset.square = square;
+    if (square === checkedKing) squareEl.classList.add("in-check");
     squareEl.setAttribute("aria-label", piece ? `${square}, ${piece.color === "w" ? "White" : "Black"} ${pieceNames[piece.type]}` : `${square}, empty`);
 
     if (selectedSquare === square) {
@@ -764,7 +779,8 @@ function renderBoard() {
     if (piece) {
       const pieceEl = document.createElement("div");
       pieceEl.className = `piece ${piece.color === "w" ? "white" : "black"}`;
-      if (pieceSet === "overhead") {
+      if (pieceSet === "smurfs") pieceEl.innerHTML = window.smurfPieceSvg(piece);
+      else if (pieceSet === "overhead") {
         pieceEl.innerHTML = window.overheadPieceSvg(piece, `board-${square}`);
         pieceEl.dataset.facing = (piece.color === "w") !== isFlipped ? "up" : "down";
       } else pieceEl.textContent = pieceGlyph(piece);
@@ -778,11 +794,11 @@ function renderBoard() {
   });
   if (boardScene) boardScene.update({
     board: game.board, pieceSet: pieceSet === "overhead" ? "animal" : pieceSet, flipped: isFlipped, selected: selectedSquare,
-    targets: legalTargets, bestFrom: bestMoveFrom, bestTo: bestMoveTo,
+    check: checkedKing, targets: legalTargets, bestFrom: bestMoveFrom, bestTo: bestMoveTo,
   });
 }
 
-function animateOverheadMove(move) {
+function animateOverheadMove(move, movingPiece, capturedPiece, captureSquare) {
   clearOverheadMove();
   const frame = boardEl.parentElement;
   const frameRect = frame.getBoundingClientRect();
@@ -798,6 +814,7 @@ function animateOverheadMove(move) {
     const start = from.getBoundingClientRect();
     const end = destination.getBoundingClientRect();
     const ghost = destination.cloneNode(true);
+    if (pieceSet === "smurfs" && step.from === move.from) ghost.innerHTML = window.smurfPieceSvg(movingPiece);
     ghost.classList.add("moving-copy");
     Object.assign(ghost.style, {
       position: "absolute", left: `${end.left - frameRect.left}px`, top: `${end.top - frameRect.top}px`,
@@ -813,7 +830,20 @@ function animateOverheadMove(move) {
       { transform: `translate(${dx}px, ${dy}px) scale(.94)` },
       { transform: "translate(0, -12px) scale(1.07)", offset: .55 },
       { transform: "translate(0, 0) scale(1)" },
-    ], { duration: 510, easing: "cubic-bezier(.24,.68,.24,1)" }).finished);
+    ], { duration: pieceSet === "smurfs" ? 380 : 510, easing: "cubic-bezier(.24,.68,.24,1)" }).finished);
+  }
+  if (pieceSet === "smurfs") {
+    for (const [square, promotion] of [[capturedPiece ? captureSquare : null, false], [move.promotion ? move.to : null, true]]) {
+      const target = square && boardEl.querySelector(`[data-square="${square}"]`);
+      if (!target) continue;
+      const rect = target.getBoundingClientRect();
+      const puff = document.createElement("div");
+      puff.className = "smurf-magic";
+      puff.textContent = promotion ? "✦ ✧ ✦" : "✧ ✦ ✧";
+      Object.assign(puff.style, {left:`${rect.left-frameRect.left}px`, top:`${rect.top-frameRect.top}px`, width:`${rect.width}px`, height:`${rect.height}px`});
+      frame.append(puff); active.ghosts.push(puff);
+      animations.push(puff.animate([{opacity:0, transform:"scale(.4)"}, {opacity:1, offset:.35}, {opacity:0, transform:"scale(1.5) translateY(-15px)"}], {duration:480, delay:promotion ? 330 : 0}).finished);
+    }
   }
   if (!animations.length) clearOverheadMove();
   else Promise.all(animations).then(() => { if (activeOverheadMove === active) clearOverheadMove(); }).catch(() => {});
@@ -821,7 +851,7 @@ function animateOverheadMove(move) {
 
 function clearOverheadMove() {
   if (!activeOverheadMove) return;
-  activeOverheadMove.ghosts.forEach((ghost) => ghost.remove());
+  activeOverheadMove.ghosts.forEach((ghost) => { ghost.getAnimations().forEach((animation) => animation.cancel()); ghost.remove(); });
   activeOverheadMove.squares.forEach((square) => {
     const destination = boardEl.querySelector(`[data-square="${square}"] .piece`);
     if (destination) destination.style.visibility = "";
@@ -1160,6 +1190,7 @@ document.getElementById("redoBtn").addEventListener("click", () => {
 
 document.getElementById("flipBtn").addEventListener("click", () => {
   clearOverheadMove();
+  boardScene?.clearMove();
   isFlipped = !isFlipped;
   renderBoard();
 });
@@ -1178,7 +1209,8 @@ document.getElementById("resetCameraBtn").addEventListener("click", () => {
   document.getElementById("cameraTilt").value = 53;
 });
 document.getElementById("motionToggleBtn").addEventListener("click", () => {
-  motionEnabled = !motionEnabled;
+  motionEnabled = !motionEnabled && !reducedMotion.matches;
+  clearOverheadMove();
   boardScene?.setMotion(motionEnabled);
   updateMotionButton();
   try { localStorage.setItem("animalChessMotion", motionEnabled ? "on" : "off"); } catch { /* Optional preference. */ }
@@ -1191,6 +1223,7 @@ document.querySelectorAll(".piece-set-option").forEach((button) => {
       return;
     }
     clearOverheadMove();
+    boardScene?.clearMove();
     pieceSet = button.dataset.pieceSet;
     try {
       localStorage.setItem("animalChessPieceSet", pieceSet);
@@ -1256,6 +1289,14 @@ document.getElementById("doneEditingBtn").addEventListener("click", () => {
   exitEditorMode(true);
 });
 
+reducedMotion.addEventListener("change", () => {
+  if (reducedMotion.matches) {
+    motionEnabled = false;
+    clearOverheadMove();
+    boardScene?.setMotion(false);
+    updateMotionButton();
+  }
+});
 renderPieceSetUI();
 initBoardScene();
 renderBoard();

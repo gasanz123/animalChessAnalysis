@@ -401,3 +401,35 @@ h2 {
   .camera-controls input { width: 60px; }
   .camera-controls button { padding: 6px; }
 }
+
+/* Smurf Village: vector characters, readable team bases, and forest tiles. */
+.board-frame[data-piece-set="smurfs"] { background: radial-gradient(ellipse at 50% 15%, #345946, #132b2c 78%); border-color: #7d965b; }
+.board[data-piece-set="smurfs"] .square.light { background: #c7dfa6; }
+.board[data-piece-set="smurfs"] .square.dark { background: #457b57; }
+.board[data-piece-set="smurfs"] .piece { width: 98%; height: 98%; }
+.smurf-art { width: 100%; height: 100%; display: block; overflow: visible; filter: drop-shadow(0 2px 2px #132b2c55); }
+.piece-set-smurfs.palette-piece { width: 40px; height: 40px; padding: 0; }
+.legend-symbol:has(.smurf-art) { display: inline-block; width: 30px; height: 30px; vertical-align: middle; }
+.board[data-piece-set="smurfs"][data-motion="on"] .smurf-character { transform-origin: 50px 80px; animation: smurf-breathe 3s ease-in-out infinite; }
+.board[data-piece-set="smurfs"][data-motion="on"] .smurf-head { transform-origin: 50px 53px; animation: smurf-nod 4s ease-in-out infinite; }
+.board[data-piece-set="smurfs"][data-motion="on"] .smurf-arm { transform-origin: 34px 57px; animation: smurf-wave 3s ease-in-out infinite; }
+.board[data-piece-set="smurfs"][data-motion="on"] .square:nth-child(3n) .smurf-head { animation-delay: -1.5s; }
+.board[data-piece-set="smurfs"][data-motion="on"] .selected .piece { animation: smurf-select .3s ease-out; }
+.board[data-piece-set="smurfs"] .in-check { box-shadow: inset 0 0 0 4px #ff5867; }
+.board[data-piece-set="smurfs"][data-motion="on"] .in-check { animation: smurf-check 1.6s ease-in-out infinite; }
+.smurf-magic { position: absolute; z-index: 6; display: grid; place-items: center; pointer-events: none; color: #ffe9a1; text-shadow: 0 0 8px #fba948; font-size: clamp(18px, 3vw, 36px); }
+@keyframes smurf-breathe { 50% { translate: 0 -1px; scale: 1 1.025; } }
+@keyframes smurf-nod { 50% { rotate: 4deg; } }
+@keyframes smurf-wave { 50% { rotate: 12deg; } }
+@keyframes smurf-select { 50% { translate: 0 -7px; } }
+@keyframes smurf-check { 50% { box-shadow: inset 0 0 0 4px #ff586788; } }
+@media (prefers-reduced-motion: reduce) { .board[data-piece-set="smurfs"] * { animation: none !important; } }
+
+.piece-set-control .segmented-control { flex-wrap: wrap; }
+#pieceLegend[data-piece-set="smurfs"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#pieceLegend[data-piece-set="smurfs"] li { display: flex; align-items: center; white-space: normal; gap: 6px; }
+#pieceLegend[data-piece-set="smurfs"] .legend-symbol { flex: 0 0 30px; }
+.board-frame[data-piece-set="smurfs"] .board-3d { background: radial-gradient(ellipse at 50% 50%, #365846, #12282b 85%); }
+
+.board-panel, .control-panel, .piece-set-control { min-width: 0; }
+@media (max-width:580px) { .piece-set-control { width:100%; } .piece-set-control .segmented-control button { flex:1 1 auto; } .camera-controls { min-width:0; } }
